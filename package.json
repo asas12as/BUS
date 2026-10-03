@@ -1,0 +1,35 @@
+{
+  "name": "nvu-bus-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:offline": "tsc -b && vite build --config vite.offline.config.ts && node scripts/make-offline.mjs && node verify-offline.mjs",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck:tests": "tsc -b tsconfig.vitest.json --pretty false",
+    "verify": "npm run lint && npm run typecheck:tests && npm run test && npm run build:offline",
+    "preview": "vite preview",
+    "replit": "node scripts/replit-serve.mjs"
+  },
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^3.2.7"
+  }
+}

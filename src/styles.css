@@ -1,0 +1,3195 @@
+:root {
+  /* Light theme: white surfaces, green brand. */
+  --bg: #f4f7f4;
+  --surface: #ffffff;
+  --surface-2: #f4f8f4;
+  --text: #0d1a0d;
+  --muted: #5c6b5c;
+  --border: #d8e4d8;
+  --brand: #15803d;
+  --brand-soft: #dcfce7;
+  --brand-contrast: #ffffff;
+  --active: #15803d;
+  --active-soft: #dcfce7;
+  --expired: #b91c1c;
+  --expired-soft: #fee2e2;
+  /* Amber rather than slate: pending means "waiting on payment", which is a
+     real in-progress state and should not read as the same grey as "none". */
+  --pending: #b45309;
+  --pending-soft: #fef3c7;
+  --shadow: 0 1px 2px rgba(13, 26, 13, 0.06), 0 8px 24px rgba(13, 26, 13, 0.06);
+  --shadow-sm: 0 1px 2px rgba(13, 26, 13, 0.05);
+--radius: 16px;
+  --radius-sm: 10px;
+  --radius-lg: 22px;
+  --footnav-h: 76px;
+  --header-h: 64px;
+
+  /* The ticket carries its own palette rather than borrowing the app's.
+     A pass is an object in its own right: it gets photographed, printed and
+     shown at a door, so it needs an ink/paper/accent set that stays legible as
+     a unit regardless of what theme the rest of the app is in. Kept apart from
+     --brand and friends on purpose, otherwise a dark theme would repaint a
+     saved pass. */
+  --ticket-ink: #0f3d2e;
+  --ticket-ink-2: #175a43;
+  --ticket-paper: #f6f3e6;
+  --ticket-accent: #f2e25a;
+  --ticket-on-ink: #f6f3e6;
+  --ticket-on-paper: #0c2a20;
+  --ticket-line: #c6c3ad;
+  --ticket-dim: #9aa596;
+  --ticket-chip: #ffffff;
+  --ticket-shadow: 0 18px 24px rgba(8, 40, 28, 0.28);
+  color-scheme: light;
+}
+
+/* Dark palette, applied either by the OS (see the media query below) or by an
+   explicit user choice. `:root[data-theme='dark']` outranks the media query, so
+   picking dark always wins over a light OS setting and vice versa. */
+:root[data-theme='dark'] {
+    /* Dark theme: near-black surfaces, orange brand. */
+    --bg: #000000;
+    --surface: #121212;
+    --surface-2: #1c1c1c;
+    --text: #f5f5f5;
+    --muted: #a3a3a3;
+    --border: #2e2e2e;
+    --brand: #f97316;
+    --brand-soft: #431407;
+    --brand-contrast: #1a0a02;
+    --active: #4ade80;
+    --active-soft: #14532d;
+    --expired: #f87171;
+    --expired-soft: #450a0a;
+    --pending: #fbbf24;
+    --pending-soft: #3f2d0b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+
+    /* The ticket keeps its own two-tone structure in the dark: the ink half goes
+       near-black rather than staying green, so the pass reads as the same object
+       rather than as a bright card pasted onto a dark page. The accent is pulled
+       down off pure yellow, which glares against near-black at this size. */
+    --ticket-ink: #0a1712;
+    --ticket-ink-2: #143327;
+    --ticket-paper: #111d18;
+    --ticket-accent: #e3d45f;
+    --ticket-on-ink: #e7f1ea;
+    --ticket-on-paper: #e7f1ea;
+    --ticket-line: #2f4a3e;
+    --ticket-dim: #7e9388;
+    --ticket-chip: #1c2f27;
+    --ticket-shadow: 0 18px 24px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    /* Dark theme: near-black surfaces, orange brand. */
+    --bg: #000000;
+    --surface: #121212;
+    --surface-2: #1c1c1c;
+    --text: #f5f5f5;
+    --muted: #a3a3a3;
+    --border: #2e2e2e;
+    --brand: #f97316;
+    --brand-soft: #431407;
+    --brand-contrast: #1a0a02;
+    --active: #4ade80;
+    --active-soft: #14532d;
+    --expired: #f87171;
+    --expired-soft: #450a0a;
+    --pending: #fbbf24;
+    --pending-soft: #3f2d0b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+
+    /* The ticket keeps its own two-tone structure in the dark: the ink half goes
+       near-black rather than staying green, so the pass reads as the same object
+       rather than as a bright card pasted onto a dark page. The accent is pulled
+       down off pure yellow, which glares against near-black at this size. */
+    --ticket-ink: #0a1712;
+    --ticket-ink-2: #143327;
+    --ticket-paper: #111d18;
+    --ticket-accent: #e3d45f;
+    --ticket-on-ink: #e7f1ea;
+    --ticket-on-paper: #e7f1ea;
+    --ticket-line: #2f4a3e;
+    --ticket-dim: #7e9388;
+    --ticket-chip: #1c2f27;
+    --ticket-shadow: 0 18px 24px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/**
+ * Bricolage Grotesque, Latin subset only, inlined by the build as a data URL.
+ *
+ * The app has to open from a single saved file with no network, so a webfont
+ * cannot be linked and cannot be fetched at runtime. Vite inlines it into the
+ * stylesheet (see `assetsInlineLimit`), which is why there is no `url()` to an
+ * external host here.
+ *
+ * `unicode-range` is what keeps Arabic out of this font. The file carries no
+ * Arabic glyphs, and without the range the browser would still hand Arabic text
+ * to it and fall back mid-word; declaring the range makes the hand-off to Noto
+ * Sans Arabic deliberate. One weight range covers the whole family because the
+ * file is variable, so 400/600/800 are all the same 75KB download.
+ */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 400 800;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url('./assets/fonts/bricolage-grotesque-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, -apple-system, Tahoma,
+    'Noto Sans Arabic', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+dl,
+dd {
+  margin: 0;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+input {
+  font: inherit;
+}
+
+svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+[dir='rtl'] .flip {
+  transform: scaleX(-1);
+}
+
+.app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app__main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px calc(var(--footnav-h) + 28px);
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* header */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-block-end: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* The brand yields space first. A truncated tagline is acceptable; a truncated
+   user name is not. */
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-header__brandIcon {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.app-header__brandText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app-header__brandText strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header__brandText small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The trailing cluster holds one icon button and the account link. Both sit on
+   a 40px line so their circles align exactly instead of a 38px circle beside a
+   42px pill. */
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: none;
+}
+
+.themebtn {
+  width: 40px;
+  height: 40px;
+  padding: 10px;
+  border-radius: 50%;
+  flex: none;
+  border: 0;
+  background: transparent;
+}
+
+.themebtn:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+/* One shape for both controls: a bare circle for the toggle, and the account as
+   a circle too. The earlier pill-with-a-circle-inside read as an error.
+   Height is pinned to 40px with no vertical padding, so both circles land on
+   exactly the same optical line. Only the inline-start side is padded, which
+   puts the space next to the name and lets the avatar hug the trailing edge.
+   That also means no RTL override is needed.
+   No max-width: a name is not decoration, so it wraps to a second line before
+   anything is cut off. The brand block is what shrinks first instead. */
+.app-header__user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 999px;
+  padding: 0;
+  padding-inline-start: 12px;
+  min-width: 0;
+  flex: 0 1 auto;
+  transition: background 0.15s ease;
+}
+
+.app-header__user:hover {
+  background: var(--surface-2);
+}
+
+/* Two lines max, then an ellipsis. A tight line-height keeps a wrapped name
+   inside the 40px band so the two circles stay aligned. */
+.app-header__name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
+/* Only on genuinely tiny screens, where the brand would otherwise be squeezed
+   down to its icon. The name itself is never hidden in favour of the brand. */
+@media (max-width: 359px) {
+  .app-header__brandText small {
+    display: none;
+  }
+}
+
+/* Shared by header, profile and admin rows so a person looks identical
+   everywhere they appear. */
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.avatar--xs {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+.avatar--sm {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.avatar--md {
+  width: 40px;
+  height: 40px;
+  font-size: 17px;
+}
+
+.avatar--lg {
+  width: 88px;
+  height: 88px;
+  font-size: 37px;
+}
+
+.avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Photos must never be selectable or dragged out of the avatar. */
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* The letter sits on the brand-soft fill; a photo uses the image itself. */
+.avatar--letter {
+  text-transform: uppercase;
+}
+
+/* photo picker */
+
+.photopicker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.photopicker__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.photopicker__hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* The native input is triggered by the button, so it must not take up space
+   or be reachable by keyboard a second time. */
+.photopicker__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* photo picker */
+
+.photopicker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.photopicker__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.photopicker__hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* The native input is triggered by the button, so it must not take up space
+   or be reachable by keyboard a second time. */
+.photopicker__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* footnav */
+
+.footnav {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-block-start: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.footnav__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: end;
+  gap: 4px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.footnav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.footnav__item:hover,
+.footnav__item.is-active {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.footnav__icon {
+  width: 22px;
+  height: 22px;
+}
+
+.footnav__label {
+  font-size: 0.66rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.footnav__logo {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  justify-self: center;
+  margin-block-start: -22px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--brand-contrast);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--brand) 40%, transparent);
+  border: 4px solid var(--surface);
+  transition: transform 0.15s ease;
+}
+
+.footnav__logo:active {
+  transform: scale(0.94);
+}
+
+.footnav__logoIcon {
+  width: 26px;
+  height: 26px;
+}
+
+/* badges */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.badge--sm {
+  padding: 3px 9px;
+  font-size: 0.7rem;
+}
+
+.badge--md {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+}
+
+.badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.badge--subscribed {
+  color: var(--active);
+  background: var(--active-soft);
+  border-color: color-mix(in srgb, var(--active) 25%, transparent);
+}
+
+/* Awaiting payment, not a problem: a soft amber that still reads as
+   "waiting" and stays clearly distinct from the neutral `none` badge. */
+.badge--pending {
+  color: var(--pending);
+  background: var(--pending-soft);
+  border-color: color-mix(in srgb, var(--pending) 25%, transparent);
+}
+
+/* Not subscribed. Quiet on purpose: this is an empty slot, not a fault, so it
+   must not borrow the red reserved for expired and cancelled records. Dashed
+   border marks it as an open slot rather than a state. */
+.badge--none {
+  color: var(--muted);
+  background: var(--surface-2);
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
+/* Faded so the empty slot sits behind the real states in the visual
+   hierarchy, and unanimated: motion now means "waiting on you" only. */
+.badge--none .badge__dot {
+  opacity: 0.55;
+  animation: none;
+}
+
+/* ----------------------------- QR pass ------------------------------------ */
+
+/* The pass is a ticket, not a form: one card with a punched line across it.
+   Surface-2 rather than surface so the punched holes below have something to
+   read against, and so the QR's white plate sits inside a distinct field. */
+/* Slightly tighter than the default sheet: the pass is one self-contained
+   object, so it is centred rather than left-aligned with body copy. */
+.sheet--pass {
+  padding: 16px;
+}
+
+/* The title row above the pass. It exists because the close control was moved
+   out of the ticket itself: inside, it competed with the weekly number for the
+   same corner, and the number is the one thing a driver reads aloud. */
+.sheet__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sheet__barTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ------------------------------ the weekly pass ----------------------------- */
+
+/**
+ * The pass is two paper halves with a torn seam, not one rounded card.
+ *
+ * The join is a real perforation rather than a drawn line: each half is masked
+ * with a circle at its two outer corners, so the pair leaves a round hole
+ * straddling the seam the way a paper ticket is torn out. Two mask layers at
+ * 51% each overlap in the middle instead of needing a third, which is what the
+ * `left / 51% 100%` and `right / 51% 100%` sizes are doing.
+ *
+ * The `#0000 97%, #000` stop is not decorative: an abrupt stop from nothing to
+ * opaque leaves a jagged edge on the circle, and feathering the last 3% is what
+ * antialiases it.
+ */
+.pass {
+  position: relative;
+  max-width: 420px;
+  margin-inline: auto;
+  filter: drop-shadow(var(--ticket-shadow));
+  animation: passRise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes passRise {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+}
+
+/* Global prefers-reduced-motion rule already collapses animation durations. */
+.pass__top,
+.pass__bottom {
+  position: relative;
+  overflow: hidden;
+}
+
+.pass__top {
+  padding: 22px 22px 30px;
+  border-radius: 26px 26px 0 0;
+  background: var(--ticket-ink);
+  color: var(--ticket-on-ink);
+  -webkit-mask: radial-gradient(circle 13px at 0 100%, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 13px at 100% 100%, #0000 97%, #000) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle 13px at 0 100%, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 13px at 100% 100%, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+
+/* A faint ring bleeding off the top corner. Sits behind everything and is
+   clipped by the overflow, so it reads as a watermark on the stock. */
+.pass__top::before {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: 34px solid color-mix(in srgb, var(--ticket-on-ink) 6%, transparent);
+  pointer-events: none;
+}
+
+.pass__bottom {
+  padding-top: 26px;
+  border-radius: 0 0 26px 26px;
+  background: var(--ticket-paper);
+  color: var(--ticket-on-paper);
+  -webkit-mask: radial-gradient(circle 13px at 0 0, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 13px at 100% 0, #0000 97%, #000) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle 13px at 0 0, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 13px at 100% 0, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+
+/* The tear line, inset from the notches so it does not run into them. */
+.pass__bottom::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  border-top: 2px dashed var(--ticket-line);
+}
+
+.pass__topRow {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pass__idBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pass__idLabel {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+/* The weekly number is what the driver calls out, so it is the largest thing on
+   the pass. Optical sizing is pinned to the top of the axis so the numerals keep
+   their display cut at every size, and the tracking is pulled back inline to
+   line the glyph up with the label above it despite the -0.06em. */
+.pass__id {
+  margin-inline-start: -0.06em;
+  font-size: clamp(3.2rem, 21vw, 6rem);
+  font-weight: 800;
+  line-height: 0.82;
+  letter-spacing: -0.06em;
+  font-variation-settings: 'opsz' 96;
+  color: var(--ticket-accent);
+}
+
+/* No subscription means no number. Not red: the red reserved for "you cannot
+   board" is spent on the payment bar, and spending it twice devalues it. */
+.pass__id.is-none {
+  margin-inline-start: 0;
+  font-size: clamp(1.5rem, 8vw, 2.1rem);
+  letter-spacing: -0.01em;
+  color: var(--ticket-on-ink);
+}
+
+.pass__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ticket-accent) 14%, transparent);
+  color: var(--ticket-accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pass__pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pass__who {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.pass__whoText {
+  min-width: 0;
+}
+
+.pass__name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.pass__week {
+  margin: 2px 0 0;
+  font-size: 14px;
+  opacity: 0.75;
+  overflow-wrap: anywhere;
+}
+
+/* A photo plate rather than a circle, tilted like a stamp. The tilt mirrors in
+   RTL so it never leans back against the reading direction. */
+.avatar--ticket {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--ticket-accent);
+  color: var(--ticket-ink);
+  font-size: 20px;
+  font-weight: 800;
+  transform: rotate(-4deg);
+}
+
+[dir='rtl'] .avatar--ticket {
+  transform: rotate(4deg);
+}
+
+.pass__figure {
+  margin: 0 16px 18px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Square and centred. The white plate is deliberate in both themes: a scanner
+   needs the light quiet zone, and the padding is what provides it. The width is
+   not reduced for the new layout, because it is what sets how many screen pixels
+   each QR module gets and a camera needs enough of them to lock on. */
+.pass__code {
+  width: min(272px, 76vw);
+  height: auto;
+  aspect-ratio: 1;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* The whole week, not just the chosen days, so Thursday and Friday are visible
+   as days the service does not run. Seven columns is the point: a rider can see
+   their pattern at a glance instead of counting chips. */
+.pass__days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  margin: 0;
+  padding: 0 16px;
+  list-style: none;
+}
+
+.pass__day {
+  border-radius: 12px;
+  padding: 9px 0 8px;
+  text-align: center;
+  background: var(--ticket-ink);
+  color: var(--ticket-on-ink);
+}
+
+.pass__dayName {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+/* The date, not the word "Riding": it is more information in the same space,
+   and it lines up with the week range printed above it. */
+.pass__dayNumber {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The three states are told apart by fill, border style and strike, not by
+   colour alone, so the row still reads on a washed-out phone screen or to a
+   colour-blind driver. That is also why each gets its own legend entry. */
+.pass__day--off {
+  background: transparent;
+  color: var(--ticket-dim);
+  border: 1.5px dashed var(--ticket-line);
+}
+
+.pass__day--closed {
+  background: transparent;
+  color: var(--ticket-dim);
+  border: 1.5px solid var(--ticket-line);
+}
+
+/* Struck through rather than merely dimmed: no service is not an option at all,
+   which is what stops a rider expecting a fifth or sixth day. */
+.pass__day--closed .pass__dayNumber {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.pass__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 12px 20px 0;
+  list-style: none;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.pass__legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pass__legendItem i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.pass__legendItem--ride i {
+  background: var(--ticket-ink);
+}
+
+.pass__legendItem--off i {
+  border: 1.5px solid var(--ticket-dim);
+}
+
+.pass__legendItem--closed i {
+  background: var(--ticket-dim);
+  opacity: 0.45;
+}
+
+/* One line, not two: the pickup place and the pickup line are the same thing, so
+   a second row would imply a choice that does not exist. The dotted leader ties
+   the place to its label the way a ticket stub does. */
+.pass__route {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 16px 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--ticket-chip);
+}
+
+.pass__route svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  stroke: var(--ticket-ink-2);
+  fill: none;
+  stroke-width: 2;
+}
+
+.pass__route b {
+  font-size: 17px;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pass__leader {
+  flex: 1 1 auto;
+  min-width: 10px;
+  border-top: 2px dotted var(--ticket-line);
+}
+
+.pass__route em {
+  font-style: normal;
+  font-size: 12px;
+  flex: none;
+  opacity: 0.7;
+}
+
+/* Payment state as a full-bleed bar at the foot of the stub, so it reads as the
+   status of the whole ticket rather than one more field. The parent's radius and
+   overflow round its bottom corners, so it needs no margins of its own. */
+.pass__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 16px 22px;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.pass__foot--paid {
+  background: var(--ticket-accent);
+  color: var(--ticket-ink);
+}
+
+.pass__foot--unpaid {
+  background: var(--pending-soft);
+  color: var(--pending);
+}
+
+.pass__foot--none {
+  background: var(--expired-soft);
+  color: var(--expired);
+}
+
+.pass__check {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.pass__check--paid {
+  background: var(--ticket-ink);
+  color: var(--ticket-accent);
+}
+
+.pass__check--unpaid {
+  background: var(--pending);
+  color: var(--pending-soft);
+}
+
+.pass__check--none {
+  background: var(--expired);
+  color: var(--expired-soft);
+}
+
+.pass__check svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pass__hint {
+  margin: 12px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.pass__hint svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* The panel above is the live pass; this is the same pass as a file. Kept apart
+   from the hint text so it reads as the action rather than as a caption. */
+.pass__save {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pass__save svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.pass__saveNote {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* ------------------------------- scan page -------------------------------- */
+
+.scanlink {
+  margin: 0 0 16px;
+}
+
+.scanlink__btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+
+.scanlink__btn > svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  color: var(--brand);
+}
+
+.scanlink__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.scanlink__body strong {
+  font-size: 0.95rem;
+}
+
+.scanlink__body small {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* A fixed 4:3 frame with the video behind it, so the page does not jump when
+   the camera comes on and the rider can see where to hold their phone. */
+.scan__view {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.scan__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Hidden rather than absent when idle: a srcObject assigned before the frame
+     is laid out is lost if the element only appears later. */
+  visibility: hidden;
+}
+
+.scan__view.is-live .scan__video {
+  visibility: visible;
+}
+
+.scan__canvas {
+  display: none;
+}
+
+.scan__reticle {
+  position: absolute;
+  inset: 18% 12%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.scan__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.scan__overlay svg {
+  width: 34px;
+  height: 34px;
+}
+
+.scan__overlayTitle {
+  font-weight: 700;
+  color: var(--expired);
+}
+
+.scan__overlayText {
+  font-size: 0.8rem;
+  max-width: 34ch;
+}
+
+.scan__actions {
+  margin: 12px 0 0;
+}
+
+.scan__actions svg {
+  width: 18px;
+  height: 18px;
+}
+
+.scan__reject {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--expired-soft);
+  color: var(--expired);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.scan__verdict {
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.scan__verdictLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.scan__verdict--ok {
+  background: var(--active-soft);
+  color: var(--active);
+}
+
+.scan__verdict--differs {
+  background: var(--pending-soft);
+  color: var(--pending);
+}
+
+.scan__verdict--none {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.scan__manual {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.scan__manualTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.scan__manualHint {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.scan__manualRow {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scan__manualRow .field__input {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.scan__manualRow .btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* page head */
+
+.page__title {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.page__sub {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+/* calendar */
+
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.calendar__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.calendar__range {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.calendar__range small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  padding: 9px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  transition: background 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+[dir='rtl'] .calendar .icon-btn svg {
+  transform: scaleX(-1);
+}
+
+.calendar__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.day {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.day.is-today {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-soft), var(--shadow);
+}
+
+.day.is-empty {
+  opacity: 0.6;
+}
+
+.day__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.day__label {
+  display: flex;
+  flex-direction: column;
+}
+
+.day__label small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.day__meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-block-start: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px dashed var(--border);
+}
+
+.day__meta div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.day__meta dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.day__meta dd {
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* stats */
+
+.statgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.statgrid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+
+button.stat {
+  cursor: pointer;
+}
+
+.stat.is-active {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+
+.stat__count {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.stat__label {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.stat--subscribed .stat__count {
+  color: var(--active);
+}
+
+.stat--pending .stat__count {
+  color: var(--pending);
+}
+
+.stat--none .stat__count {
+  color: var(--expired);
+}
+
+/* status list */
+
+.statuslist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.statuslist__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.statuslist__day {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.statuslist__day small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* Pickup shown under the next-week label, so the two rows can carry different
+   amounts of detail without breaking the badge alignment. */
+.statuslist__pickup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.statuslist__pickup svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+/* When a row carries two lines, pin the badge to the top so it sits beside the
+   label rather than floating between the two lines. */
+.statuslist__row--stacked {
+  align-items: flex-start;
+}
+
+/* user list */
+
+.userlist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.userlist__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-align: start;
+}
+
+.userlist__row.is-active {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+
+.userlist__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.userlist__info small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* admin week editor */
+
+.adminweek {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.adminweek__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block-end: 10px;
+  border-block-end: 1px dashed var(--border);
+}
+
+.adminweek__row:last-child {
+  border-block-end: 0;
+  padding-block-end: 0;
+}
+
+.adminweek__day {
+  display: flex;
+  flex-direction: column;
+}
+
+.adminweek__day small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* cards, forms, buttons */
+
+.card {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.card__titleIcon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--brand);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field__icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.field__input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* The search box owns its own clear button, so the input needs the trailing
+   padding to keep text from running underneath it. */
+.field--search {
+  position: relative;
+}
+
+.field--search .field__input {
+  padding-inline-end: 42px;
+}
+
+.searchclear {
+  position: absolute;
+  inset-block-end: 6px;
+  inset-inline-end: 6px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.searchclear svg {
+  width: 15px;
+  height: 15px;
+}
+
+.searchclear:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.field__input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-weight: 700;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+/**
+ * The opposite of `btn--block`: a button sized to its own label.
+ *
+ * A two word action like "Scan another" spread across a 720px page reads as the
+ * main call to action even when it is only a way back to the camera, and it is
+ * an awkward target on a phone held one handed. Centring it keeps the padding
+ * and the tap height but stops the width growing with the page.
+ *
+ * `max-width` is what keeps a long translation, or a long label in a narrow
+ * phone, from pushing past the edge of the page.
+ */
+.btn--shrink {
+  align-self: center;
+  max-width: 100%;
+}
+
+/**
+ * A square cornered, quiet secondary action.
+ *
+ * The rounded `btn` shape suits the primary actions, where a soft pill reads as
+ * friendly and tappable. On a quiet action like "Scan another" that sits below
+ * a result card it reads as shouty, and the rounded corners fight the straight
+ * edges of the pass above it. A hard rectangle with a hairline border and a
+ * white fill sits back and lets the card stay the thing being looked at.
+ *
+ * `min-height` rather than vertical padding, so the row keeps a full 44px touch
+ * target while the corners stay square and the label stays on one line.
+ */
+.btn--rect {
+  border-radius: 0;
+  min-height: 44px;
+  padding: 0 20px;
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* Darker edge and a faint tint of the page, not a brightness filter: filtering
+   greys the hairline border out and the button loses its crispness. */
+.btn--rect:hover {
+  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--text) 24%, var(--border));
+}
+
+/* Pressed, the border takes the brand colour. Enough feedback to confirm the
+   tap without turning a quiet button into a primary one. */
+.btn--rect:active {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+/* Nothing in the app sets a focus ring, so this one is spelled out. The default
+   ring follows the rounded outline of other buttons and would look wrong here. */
+.btn--rect:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* The scan page's one action after a result. It keeps the square corners and
+   the content-hugging width, but borrows the pass palette so the screen reads
+   as one ticket rather than a ticket sitting next to an unrelated button. */
+.btn--ticket {
+  background: var(--ticket-ink);
+  border-color: var(--ticket-ink);
+  color: var(--ticket-accent);
+  font-weight: 700;
+}
+
+.btn--ticket:hover {
+  background: color-mix(in srgb, var(--ticket-on-ink) 12%, var(--ticket-ink));
+  border-color: color-mix(in srgb, var(--ticket-on-ink) 12%, var(--ticket-ink));
+  color: var(--ticket-accent);
+}
+
+.btn--ticket:active {
+  background: color-mix(in srgb, var(--ticket-on-ink) 20%, var(--ticket-ink));
+  color: var(--ticket-accent);
+}
+
+.btn--ticket:focus-visible {
+  outline-color: var(--ticket-accent);
+}
+
+/* Fixed icon box so the glyph cannot stretch the row or sit off the text
+   baseline when the label wraps in a narrow phone. */
+.btn--rect svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+.btn--primary {
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.btn--primary:hover {
+  filter: brightness(1.06);
+}
+
+.btn--ghost {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 600;
+  padding: 9px 14px;
+}
+
+.btn--danger {
+  background: var(--expired-soft);
+  color: var(--expired);
+  border-color: color-mix(in srgb, var(--expired) 30%, transparent);
+}
+
+.btn__icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.segmented__btn {
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.segmented__btn.is-active {
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kv li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.kv strong {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form__error,
+.form__ok {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.form__error {
+  background: var(--expired-soft);
+  color: var(--expired);
+}
+
+.form__ok {
+  background: var(--active-soft);
+  color: var(--active);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty__icon {
+  width: 40px;
+  height: 40px;
+  opacity: 0.5;
+}
+
+/* auth */
+
+.auth {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px 16px;
+  position: relative;
+}
+
+.auth__lang {
+  position: absolute;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.auth__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.auth__logo {
+  width: 64px;
+  height: 64px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--brand);
+  color: var(--brand-contrast);
+  box-shadow: var(--shadow);
+}
+
+.auth__brand h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.auth__brand p {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.auth__card {
+  width: 100%;
+  max-width: 420px;
+  padding: 22px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.auth__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-block-end: 16px;
+  text-align: center;
+}
+
+.auth__switch {
+  margin-block-start: 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.auth__switch a {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.auth__hint {
+  margin-block-start: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-align: center;
+  direction: ltr;
+}
+
+@media (max-width: 380px) {
+  .footnav__label {
+    font-size: 0.6rem;
+  }
+
+  .day__meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* motion */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInEnd {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes dotPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 0.55;
+  }
+}
+
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes growIn {
+  from {
+    opacity: 0;
+    transform: scaleX(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.anim-page {
+  animation: fadeUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-stagger {
+  animation: fadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+.anim-pop {
+  animation: popIn 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.anim-fade {
+  animation: fadeIn 0.4s ease both;
+}
+
+.badge--pending .badge__dot {
+  animation: dotPulse 1.8s ease-in-out infinite;
+}
+
+.btn,
+.icon-btn,
+.segment__btn,
+.placelist__item,
+.stat,
+.userlist__row,
+.footnav__item {
+  transition:
+    transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.btn:active,
+.icon-btn:active,
+.segment__btn:active,
+.placelist__item:active,
+.stat:active,
+.footnav__item:active,
+.footnav__logo:active {
+  transform: scale(0.955);
+}
+
+.stat:hover,
+.userlist__row:hover,
+.placelist__item:hover {
+  transform: translateY(-2px);
+}
+
+.card,
+.day,
+.userlist__row,
+.stat {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.day:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08), 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.badge {
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.2s ease;
+}
+
+.footnav__item:hover .footnav__icon {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.footnav__icon {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.footnav__logo {
+  animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both, floatY 4s ease-in-out 0.5s infinite;
+}
+
+.stat__count {
+  animation: growIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center bottom;
+}
+
+.auth__card,
+.auth__logo {
+  animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.auth__brand {
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page > .card {
+  animation: fadeUp 0.44s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page > .card:nth-of-type(1) {
+  animation-delay: 0.06s;
+}
+
+.page > .card:nth-of-type(2) {
+  animation-delay: 0.12s;
+}
+
+.page > .card:nth-of-type(3) {
+  animation-delay: 0.18s;
+}
+
+.page__head {
+  animation: fadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.statuslist__row,
+.userlist__row,
+.adminweek__row {
+  animation: slideInEnd 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+
+[dir='rtl'] .statuslist__row,
+[dir='rtl'] .userlist__row,
+[dir='rtl'] .adminweek__row {
+  animation-name: fadeUp;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ---------------------- weekly subscription (float sheet) ------------------- */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, #0b1220 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 460px;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 60px color-mix(in srgb, #0b1220 35%, transparent);
+  animation: sheetUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block-end: 14px;
+  margin-block-end: 14px;
+  border-block-end: 1px solid var(--border);
+}
+
+.sheet__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 14px;
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.sheet__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.sheet__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sheet__sub {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.sheet__head .icon-btn {
+  margin-inline-start: auto;
+}
+
+/* Shown when the sheet followed the tap to the week that is actually open, so
+   the rider is told which week they are signing up for rather than silently
+   getting a different one than they tapped. */
+.sheet__redirect {
+  margin: 6px 0 0;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.sheet__state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-block-end: 14px;
+}
+.sheet__statePickup {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  min-width: 0;
+}
+.sheet__statePickup svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--brand);
+}
+.sheet__label {
+
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.sheet__help {
+  margin: 4px 0 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.sheet__warn {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 0.83rem;
+  color: var(--pending);
+  background: var(--pending-soft);
+  border: 1px solid color-mix(in srgb, var(--pending) 30%, transparent);
+}
+
+.sheet__empty {
+  padding: 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.sheet__custom .field__input {
+  margin-block-end: 4px;
+}
+
+.sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block-start: 18px;
+}
+
+.sheet__done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 10px;
+  text-align: center;
+}
+
+.sheet__done svg {
+  width: 46px;
+  height: 46px;
+  color: var(--active);
+  stroke-width: 2.2;
+}
+
+.sheet__done span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* segmented control */
+
+.segment {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin-block-end: 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.segment__btn {
+  flex: 1;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.segment__btn.is-active {
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.segment__btn:active {
+  transform: scale(0.97);
+}
+
+/* pickup place list */
+
+.placelist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.placelist__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.12s ease;
+}
+
+.placelist__item svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--muted);
+}
+
+.placelist__item span {
+  flex: 1;
+}
+
+.placelist__item:hover {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--border));
+}
+
+.placelist__item:active {
+  transform: scale(0.99);
+}
+
+.placelist__item.is-active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.placelist__item.is-active .placelist__check {
+  color: var(--brand);
+}
+
+.placelist__check {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.placelist--admin .placelist__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-block-end: 1px solid var(--border);
+}
+
+.placelist--admin .placelist__row > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.is-archived {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+/* calendar subscription row */
+
+/* Status badge on the left, primary action on the right. The weekly number and
+   pickup point were removed from here so this row carries one job: state and the
+   single action that changes it. Those details live in the day cards, the week
+   overview and the subscribe sheet instead. */
+.calendar__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  margin-block: 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.calendar__cta {
+  margin-inline-start: auto;
+}
+
+.calendar__note {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Live window state, shown above the subscribe button and inside the sheet.
+   Closed reads as muted, open as brand-tinted, so the state is legible before
+   anyone taps anything. */
+.calendar__window {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.calendar__window.is-open {
+  color: var(--active);
+  background: var(--active-soft);
+  border-color: color-mix(in srgb, var(--active) 25%, transparent);
+}
+
+/* Price breakdown in the subscription sheet. The base week and the optional
+   fifth day are separate lines so the rider can see why the total moved when
+   they add the fifth day, and the extra line greys out until it applies. */
+.price {
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.price__label {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.price__lines {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.price__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+/* Muted while the rider is on four days: present but not yet charged. */
+.price__line:not(.is-added):not(.price__line--total) {
+  opacity: 0.55;
+}
+
+.price__line dd {
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.price__line--total {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.price__line--total dd {
+  font-size: 1.05rem;
+  color: var(--brand);
+}
+
+/* Day picker: five chips, one per selectable day. Tapping toggles, and the
+   chips stop accepting once five are on so an invalid count cannot be built
+   by hand. */
+.daypick {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.daypick__btn {
+  padding: 10px 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.daypick__btn.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand, #fff);
+}
+
+.daypick__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Per-day riding state on the calendar. Off days stay visible but recede,
+   so a four-day rider can see at a glance which day they skipped. */
+.day.is-off {
+  opacity: 0.5;
+}
+
+.day__badge {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.day__badge.is-riding {
+  background: var(--active);
+  color: var(--on-brand, #fff);
+}
+
+.statuslist__days {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.statuslist__days svg {
+  width: 14px;
+  height: 14px;
+}
+
+.calendar__windowIcon,
+.sheet__windowIcon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.sheet__window {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.sheet__window.is-open {
+  color: var(--active);
+  background: var(--active-soft);
+  border-color: color-mix(in srgb, var(--active) 25%, transparent);
+}
+
+/* shared row helpers */
+
+.rowactions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inlineadd {
+  display: flex;
+  gap: 8px;
+  margin-block-end: 12px;
+}
+
+.inlineadd .field__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn--sm {
+  padding: 7px 11px;
+  font-size: 0.8rem;
+}
+
+.statuslist__pickup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-block-start: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  align-self: flex-start;
+}
+
+.statuslist__pickup svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+/* badges inside the stacked week column hug their content */
+.statuslist__day .wkid--inline,
+.statuslist__day .statuslist__pickup {
+  align-self: flex-start;
+}
+
+.userlist__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.userlist__week {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* ------------------------- weekly id + admin users ------------------------- */
+
+/* shown when the browser refuses localStorage */
+
+.storagewarn {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 70;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: center;
+  background: var(--expired-soft);
+  color: var(--expired);
+  border-block-end: 1px solid color-mix(in srgb, var(--expired) 30%, transparent);
+}
+
+/* one block per eligible week: this week, then next week */
+
+.weekdoors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weekdoor {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+
+.weekdoor:hover {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px color-mix(in srgb, #0b1220 10%, transparent);
+}
+
+.weekdoor:active {
+  transform: translateY(0);
+}
+
+.weekdoor__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.weekdoor__icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.weekdoor__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.weekdoor__title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.weekdoor__range {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.weekdoor__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 6px;
+}
+
+.weekdoor__count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.weekdoor__count--pending {
+  border-color: var(--pending);
+  color: var(--pending);
+  background: color-mix(in srgb, var(--pending) 10%, transparent);
+}
+
+.weekdoor__count--subscribed {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+/* notification sign on the button */
+.weekdoor__badge {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--expired);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 3px var(--surface);
+}
+
+@media (max-width: 420px) {
+  .weekdoors {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.weekpart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weekpart + .weekpart {
+  margin-block-start: 18px;
+  padding-block-start: 18px;
+  border-block-start: 1px solid var(--border);
+}
+
+.weekpart__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.weekpart__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--brand);
+  flex: none;
+}
+
+.weekpart__title small {
+  margin-inline-start: auto;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.wkid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+  white-space: nowrap;
+}
+.wkid__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.wkid__value {
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.wkid--inline {
+  padding: 2px 8px;
+}
+
+.sheet__doneId {
+  margin-block-start: 4px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.uslist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.usrow {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.usrow__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.usrow__id {
+  flex: none;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usrow__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.usrow__info small {
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.usrow__tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.usrow__date {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.usrow__role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.usrow__role--admin {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.usrow__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border-block-start: 1px solid var(--border);
+  background: var(--surface);
+}
+.usrow__groupTitle {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.usrow__grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 620px) {
+  .usrow__grid {
+    grid-template-columns: repeat(3, 1fr) auto;
+  }
+}
+.usrow__subs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.usrow__sub {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: var(--surface-2);
+}
+.usrow__subHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.usrow__subHead small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.usrow__subFacts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-block: 8px;
+}
+.usrow__pickup {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.usrow__controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.usrow__controls .field__input {
+  flex: 1 1 130px;
+  width: auto;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+}
+.usrow__days {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.usrow__day {
+  display: grid;
+  grid-template-columns: 92px 1fr 96px;
+  gap: 6px;
+  align-items: center;
+}
+.usrow__day .field__input {
+  padding: 7px 9px;
+  font-size: 0.78rem;
+}
+.usrow__date {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.usrow__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-block-start: 1px solid var(--border);
+  padding-block-start: 12px;
+}
+.usrow__message {
+  font-size: 0.76rem;
+  color: var(--muted);
+}

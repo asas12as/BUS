@@ -1,0 +1,147 @@
+[2m4:15:18 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: StatusBadge is not defined
+[39m > Header src/components/Header.tsx:23:9
+    21 |  
+    22 |        <Link to="/profile" className="app-header__user">
+    23 |          <StatusBadge status={status} size="sm" />
+       |           ^
+    24 |          <span className="app-header__name">{currentUser.name}</span>
+    25 |          <span className="app-header__avatar">
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m4:15:18 AM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <Header> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m5:24:54 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Cannot redefine property: ethereum
+[39m > r.inject chrome-extension:/bfnaelmomeimhlpmgjnjophhpkkoljpa/evmAsk.js:15:5093
+ > window.addEventListener.once chrome-extension:/bfnaelmomeimhlpmgjnjophhpkkoljpa/evmAsk.js:15:9013
+
+[2m5:59:01 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] SyntaxError: The requested module '/src/components/SubscribeSheet.tsx?t=1790564341774' does not provide an export named 'SubscribeSheet'
+[2m5:59:01 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/pages/Statuses.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[2m5:59:01 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] SyntaxError: The requested module '/src/components/SubscribeSheet.tsx?t=1790564341774' does not provide an export named 'SubscribeSheet'
+[2m5:59:01 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/components/WeekCalendar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[2m6:14:34 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mError[22m: useApp must be used inside AppProvider
+[39m > useApp src/context/AppContext.tsx:507:18
+    505 |  export function useApp(): AppContextValue {
+    506 |    const ctx = useContext(AppContext)
+    507 |    if (!ctx) throw new Error('useApp must be used inside AppProvider')
+        |                    ^
+    508 |    return ctx
+    509 |  }
+ > RequireAuth src/App.tsx?t=1790564821832:16:26
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+
+[2m6:14:34 AM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <RequireAuth> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m6:29:36 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] SyntaxError: The requested module '/src/components/Icons.tsx?t=1790564063214' does not provide an export named 'CalendarIcon'
+[2m6:29:36 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/pages/Statuses.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[2m6:34:01 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: CalendarIcon is not defined
+[39m > src/pages/AdminDashboard.tsx:91:17
+    89 |              <div key={key} className="weekpart">
+    90 |                <h3 className="weekpart__title">
+    91 |                  <CalendarIcon className="weekpart__icon" />
+       |                   ^
+    92 |                  {title}
+    93 |                  <small>{weekRange(key)}</small>
+ > AdminDashboard src/pages/AdminDashboard.tsx:86:10
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+
+[2m6:34:01 AM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <AdminDashboard> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m6:53:51 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: AppRouter is not defined
+[39m > App src/App.tsx:80:7
+    78 |    return (
+    79 |      <AppProvider>
+    80 |        <AppRouter>
+       |         ^
+    81 |          <AppRoutes />
+    82 |        </AppRouter>
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m6:53:51 AM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <App> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m6:54:10 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: storageAvailable is not defined
+[39m > src/context/AppContext.tsx:107:60
+    105 |  export function AppProvider({ children }: { children: ReactNode }) {
+    106 |    const [data, setData] = useState<AppData>(() => readData())
+    107 |    const [storageOk, setStorageOk] = useState<boolean>(() => storageAvailable())
+        |                                                              ^
+    108 |  
+    109 |    const persist = useCallback((next: AppData) => {
+ > mountStateImpl node_modules/react-dom/cjs/react-dom-client.development.js:8650:23
+ > mountState node_modules/react-dom/cjs/react-dom-client.development.js:8671:21
+ > Object.useState node_modules/react-dom/cjs/react-dom-client.development.js:28913:17
+ > exports.useState node_modules/react/cjs/react.development.js:1309:33
+ > AppProvider src/context/AppContext.tsx:107:36
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+
+[2m6:54:10 AM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <AppProvider> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m6:55:08 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: StorageWarning is not defined
+[39m > App src/App.tsx:82:9
+    80 |      <AppProvider>
+    81 |        <AppRouter>
+    82 |          <StorageWarning />
+       |           ^
+    83 |          <AppRoutes />
+    84 |        </AppRouter>
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m6:55:08 AM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <App> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
