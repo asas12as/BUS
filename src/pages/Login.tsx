@@ -69,7 +69,6 @@ export function Login() {
           {pending ? t('signingIn') : t('signIn')}
         </button>
       </form>
-      <p className="auth__hint">{t('adminHint')}</p>
       <p className="auth__switch">
         {t('noAccountYet')} <Link to="/signup">{t('signUp')}</Link>
       </p>
