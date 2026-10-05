@@ -1,0 +1,19 @@
+# Normalize line endings to LF in the repository.
+#
+# The target runtime is Linux (Replit runs `sh -c "npm ci && npm run build"`),
+# and several files here are executed rather than only read: the .mjs build and
+# verification scripts. Storing CRLF for those is how you get an intermittent
+# "Unexpected token" or a shebang that the shell will not honour. Normalizing
+# once here is cheaper than debugging it later on someone else's machine.
+* text=auto eol=lf
+
+# Binary assets must never be touched by the above.
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.png binary
+*.jpg binary
+*.ico binary
+
+# A patch-style file: CRLF in a diff is noise.
+*.patch -text

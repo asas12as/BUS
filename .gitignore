@@ -1,0 +1,33 @@
+# Logs
+logs
+*.log
+*.err
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Build outputs. `dist` above does not match these, and both are large:
+# dist-offline is ~550 KB of emitted CSS/JS, phone/ is the ~550 KB single-file
+# artifact that `build:offline` produces for sideloading onto a handset.
+# Neither belongs in history: they are reproducible from source with
+# `npm run build:offline`.
+dist-offline
+phone
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

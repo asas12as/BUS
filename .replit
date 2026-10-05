@@ -1,0 +1,18 @@
+run = "npm run replit"
+entrypoint = "index.html"
+modules = ["nodejs-22"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "npm run replit"]
+deploymentTarget = "cloudrun"
+build = ["sh", "-c", "npm ci && npm run build"]
+
+[[ports]]
+localPort = 5173
+externalPort = 80
+
+[env]
+PORT = "5173"
