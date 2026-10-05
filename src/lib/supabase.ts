@@ -31,9 +31,14 @@ export class SupabaseNotConfigured extends Error {
 }
 
 function required(name: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_PUBLISHABLE_KEY'): string {
-  const value = import.meta.env[name]
-  if (!value) throw new SupabaseNotConfigured([name])
-  return value
+  const raw = import.meta.env[name]
+  if (!raw) throw new SupabaseNotConfigured([name])
+  // Copied by hand into a dashboard, a variable picks up trailing whitespace and
+  // a trailing slash. The library builds `${url}/auth/v1/...`, so an untrimmed
+  // value turns every request into a double-slashed path that is not the same
+  // origin as the one CORS is granted for.
+  const value = raw.trim()
+  return name === 'VITE_SUPABASE_URL' ? value.replace(/\/+$/, '') : value
 }
 
 let cached: SupabaseClient | null = null
