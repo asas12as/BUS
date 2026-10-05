@@ -1,6 +1,6 @@
 import jsQR from 'jsqr'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useApp } from '../context/AppContext'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useApp } from '../context/useApp'
 import { decodeQrPayload, paymentStateFor, type QrPayload } from '../lib/qr'
 import { hasCamera } from '../lib/camera'
 import {
@@ -9,14 +9,12 @@ import {
   formatDayShort,
   formatMonthRange,
   fromISO,
-  normalizeDays,
   subDays,
   weekDayMarks,
   weekDays
 } from '../lib/date'
-import { ownerOfWeeklyNumber, weeklyNumberLabel } from '../lib/storage'
-import { parseWeeklyNumber } from '../lib/weeklyNumber'
-import type { SubStatus } from '../lib/types'
+import { parseWeeklyNumber, weeklyNumberLabel } from '../lib/weeklyNumber'
+import type { ScanResolution } from '../lib/mappers'
 import { PassCard } from '../components/PassCard'
 import { CameraIcon, CloseIcon, ScanFrameIcon, SearchIcon } from '../components/Icons'
 
@@ -24,10 +22,15 @@ import { CameraIcon, CloseIcon, ScanFrameIcon, SearchIcon } from '../components/
  * Reads a rider's pass instead of making a driver type numbers.
  *
  * The decoder runs in this page rather than in a service, so it works with no
- * backend at all, which is the whole premise of the app. Everything it needs
- * comes out of one video frame: the code is decoded, parsed by the same reader
- * the rider's own panel writes with, and then checked against the subscriptions
- * this device already holds.
+ * backend at all. What it needs it asks the server for: the scanned code is only
+ * an identifier, and everything the driver is shown comes from a fresh lookup of
+ * the current books. A screenshot of a cancelled pass therefore fails, which is
+ * the entire point of scanning rather than reading the picture.
+ *
+ * There is deliberately no offline path here, unlike the rest of the app. A
+ * cached subscription cannot answer the only question this screen asks, and
+ * "probably still valid" is not something to put in front of somebody deciding
+ * whether to let a person on the bus.
  *
  * Admin only. The pass carries a rider's name, pickup and weekly number, so
  * scanning one is a driver's job and there is no reason to hand that to every
@@ -52,22 +55,42 @@ const COOLDOWN_MS = 1200
 
 type CameraState = 'idle' | 'starting' | 'live' | 'denied' | 'unavailable'
 
-/** What the code claimed, next to what this device has on file. */
-interface Verdict {
-  match: 'ok' | 'differs' | 'none'
-  status: SubStatus | null
-  name: string | null
+/** How the server answered. `offline` is its own state, not a rejection. */
+type Verdict =
+  | { state: 'checking' }
+  | { state: 'unreachable' }
+  | { state: 'not-found' }
+  | { state: 'valid' }
+  | { state: 'pending' }
+  | { state: 'cancelled' }
+
+/**
+ * Only three styles, on purpose: go, stop, or no idea yet. A pending pass and a
+ * cancelled one are both "do not board yet", and giving them different colours
+ * would suggest a distinction a driver cannot act on.
+ */
+function verdictClass(state: Verdict['state']): 'ok' | 'differs' | 'none' | 'pending' {
+  if (state === 'valid') return 'ok'
+  if (state === 'pending' || state === 'cancelled') return 'differs'
+  return 'none'
 }
 
 export function Scan() {
-  const { t, lang, data, adminUsers } = useApp()
+  const { t, lang, online, resolveWeeklyNumber } = useApp()
 
   const [camera, setCamera] = useState<CameraState>(() => (hasCamera() ? 'idle' : 'unavailable'))
   const [result, setResult] = useState<QrPayload | null>(null)
   const [rejected, setRejected] = useState(false)
   const [manualId, setManualId] = useState('')
   const [week, setWeek] = useState<string>(() => eligibleWeekKeys()[0])
-  const [manualError, setManualError] = useState(false)
+  /**
+   * Which of the two failures a typed number produced. Both leave the screen
+   * empty, so the reason has to be said out loud: a wrong number is the
+   * driver's typo to fix, an unreachable server is a signal to move to.
+   */
+  const [manualError, setManualError] = useState<'not-found' | 'unreachable' | null>(null)
+  const [resolution, setResolution] = useState<ScanResolution | null>(null)
+  const [verdict, setVerdict] = useState<Verdict>({ state: 'checking' })
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -99,14 +122,55 @@ export function Scan() {
     setResult(null)
   }, [release])
 
-  const read = useCallback((payload: QrPayload) => {
-    heldRef.current = true
-    setResult(payload)
-    setRejected(false)
-    // A short buzz is the only confirmation available without a speaker, and it
-    // is the one a driver feels through the phone rather than looks for.
-    navigator.vibrate?.(60)
-  }, [])
+  /**
+   * Asks the server what a weekly number means right now, and records the attempt.
+   *
+   * The verdict is stored separately from the decoded payload on purpose: the
+   * payload is what the code claimed, the verdict is what the books say. Showing
+   * the rider's own claimed status as if it were the answer would defeat the
+   * check.
+   */
+  const verify = useCallback(
+    async (weekStart: string, number: number) => {
+      setVerdict({ state: 'checking' })
+      const found = await resolveWeeklyNumber(weekStart, number)
+      if (found === null) {
+        setResolution(null)
+        setVerdict({ state: 'unreachable' })
+        return null
+      }
+      setResolution(found)
+      // `not_found` is the one resolution with no subscription behind it, so it
+      // is the same state as a code carrying no usable number.
+      setVerdict({ state: found.result === 'not_found' ? 'not-found' : found.result })
+      // The rider's real name and pickup come from the lookup, not the code. A
+      // pass is a photograph of somebody's phone, and the photograph can be old.
+      return found
+    },
+    [resolveWeeklyNumber]
+  )
+
+  const read = useCallback(
+    (payload: QrPayload) => {
+      heldRef.current = true
+      setResult(payload)
+      setRejected(false)
+      // A short buzz is the only confirmation available without a speaker, and it
+      // is the one a driver feels through the phone rather than looks for.
+      navigator.vibrate?.(60)
+
+      const number = payload.q ? parseWeeklyNumber(payload.q) : null
+      if (number === null || !Number.isFinite(number)) {
+        // A code with no usable number cannot be checked, so nothing is shown
+        // as verified against it.
+        setResolution(null)
+        setVerdict({ state: 'not-found' })
+        return
+      }
+      void verify(payload.w, number)
+    },
+    [verify]
+  )
 
   /** Any QR that is not one of ours is refused rather than half-read. */
   const onText = useCallback(
@@ -193,70 +257,36 @@ export function Scan() {
   useEffect(() => release, [release])
 
   /**
-   * Cross-checks the pass against this device. A code can be perfectly valid and
-   * still disagree with the books: printed once, then cancelled or re-issued.
-   * Showing that difference is the point of scanning rather than reading a
-   * number off a screen.
+   * The way round a refused camera. The number goes through the same server
+   * lookup a scan does, so both doors produce the same card and the same
+   * recorded attempt.
    */
-  /**
-   * Whoever holds the scanned number on this device, if anybody does.
-   *
-   * Pulled out of the verdict so the card and the comparison cannot disagree
-   * about who was found: one lookup, one answer. Null covers both "no such
-   * number here" and "the pass carries no usable number", which is why the card
-   * falls back to the name printed on the code itself.
-   */
-  const foundOwner = useMemo(() => {
-    if (!result) return null
-    const number = result.q ? parseWeeklyNumber(result.q) : null
-    if (number === null || !Number.isFinite(number)) return null
-    return ownerOfWeeklyNumber(data, adminUsers, result.w, number)
-  }, [result, adminUsers, data])
-
-  const verdict: Verdict | null = useMemo(() => {
-    if (!result) return null
-    if (!foundOwner) return { match: 'none', status: null, name: null }
-    const storedDays = subDays(foundOwner.sub)
-    const same =
-      foundOwner.sub.status === result.s &&
-      normalizeDays(result.d).join(',') === storedDays.join(',') &&
-      (foundOwner.sub.pickupName ?? '') === result.p
-    return {
-      match: same ? 'ok' : 'differs',
-      status: foundOwner.sub.status,
-      name: foundOwner.user.name
-    }
-  }, [result, foundOwner])
-
-  /**
-   * The way round a refused camera. The number is looked up in the chosen week
-   * and turned into the same payload a scan produces, so both doors lead to the
-   * same card and the same comparison against the books.
-   */
-  const submitManual = (e: React.FormEvent) => {
+  const submitManual = async (e: React.FormEvent) => {
     e.preventDefault()
     const number = parseWeeklyNumber(manualId)
-    setManualError(false)
+    setManualError(null)
     if (number === null) {
-      setManualError(true)
+      setManualError('not-found')
       return
     }
-    const found = ownerOfWeeklyNumber(data, adminUsers, week, number)
-    if (!found) {
-      setManualError(true)
-      setResult(null)
-      return
-    }
-    const owner = found.user
-    const sub = found.sub
+
     heldRef.current = true
     setRejected(false)
+    const found = await verify(week, number)
+    if (found === null || !found.sub) {
+      setResult(null)
+      // Not found and could not reach the server are different failures, and a
+      // driver can only act on one of them.
+      setManualError(found === null ? 'unreachable' : 'not-found')
+      return
+    }
+
     setResult({
-      n: owner.name,
-      q: weeklyNumberLabel(sub.number ?? null),
-      d: subDays(sub),
-      p: sub.pickupName ?? owner.pickupLocation ?? '',
-      s: sub.status,
+      n: found.user?.name ?? '',
+      q: weeklyNumberLabel(found.sub.number ?? null),
+      d: subDays(found.sub),
+      p: found.sub.pickupName ?? found.user?.pickupLocation ?? '',
+      s: found.sub.status,
       w: week
     })
     navigator.vibrate?.(40)
@@ -267,14 +297,24 @@ export function Scan() {
     heldRef.current = false
     lastRef.current = null
     setResult(null)
+    setResolution(null)
     setRejected(false)
-    setManualError(false)
+    setManualError(null)
+    setVerdict({ state: 'checking' })
   }
 
-  const payment = result ? paymentStateFor(result.s) : null
+  const payment = resolution?.sub ? paymentStateFor(resolution.sub.status) : null
   const weeks = eligibleWeekKeys()
+  /**
+   * The days rendered on the card are the server's, not the code's.
+   *
+   * Showing the scanned days would let a rider edit the picture and appear to
+   * ride a different week. The one case the code wins is a miss, where there is
+   * nothing to show and the driver's only question is which pass this was.
+   */
+  const serverDays = resolution?.sub ? subDays(resolution.sub) : result?.d ?? []
   const strip = result
-    ? weekDayMarks(fromISO(result.w), result.d).map((m) => ({
+    ? weekDayMarks(fromISO(result.w), serverDays).map((m) => ({
         key: `${result.w}-${m.day}`,
         label: formatDayShort(m.date, lang),
         number: formatDayNumber(m.date, lang),
@@ -312,6 +352,15 @@ export function Scan() {
         )}
       </div>
 
+      {/* The offline warning sits above the camera because scanning is the one
+          screen that cannot be faked from a cache, and a driver who does not
+          notice that will read "checking…" as "fine". */}
+      {!online && (
+        <p className="scan__reject" role="status">
+          {t('offlineReadOnly')}
+        </p>
+      )}
+
       <div className="scan__actions">
         {camera === 'live' ? (
           <button type="button" className="btn btn--block" onClick={() => { stop(); setCamera('idle') }}>
@@ -339,28 +388,34 @@ export function Scan() {
 
       {result && (
         <>
-          {/* The photo comes from this device's own records, not from the code:
-              a QR carrying an image would be far too dense to scan. */}
+          {/* The photo comes from the server's record of the rider, not from the
+              code: a QR carrying an image would be far too dense to scan. */}
           <PassCard
             number={result.q || null}
-            name={result.n || t('none')}
-            avatar={foundOwner?.user.avatar ?? null}
+            name={resolution?.user?.name || t('none')}
+            avatar={resolution?.user?.avatar ?? null}
             weekRange={range}
             days={strip}
-            pickup={result.p || t('none')}
-            status={result.s}
+            pickup={resolution?.sub?.pickupName ?? (result.p || t('none'))}
+            status={resolution?.sub?.status ?? 'none'}
             payment={payment ?? 'none'}
           />
 
+          {/* One line per outcome, because the driver is making a decision from
+              it: let them travel, do not, or try again elsewhere. 'unreachable'
+              is deliberately not styled as a rejection, so nobody is turned
+              away because a phone had no signal. */}
           <p
-            className={`scan__verdict scan__verdict--${
-              verdict?.match === 'ok' ? 'ok' : verdict?.match === 'differs' ? 'differs' : 'none'
-            }`}
+            className={`scan__verdict scan__verdict--${verdictClass(verdict.state)}`}
+            aria-live="polite"
           >
             <span className="scan__verdictLabel">{t('scanRecord')}</span>
-            {verdict?.match === 'ok' && t('scanRecordOk')}
-            {verdict?.match === 'differs' && t('scanRecordDiffers')}
-            {verdict?.match === 'none' && t('scanRecordNone')}
+            {verdict.state === 'checking' && t('scanChecking')}
+            {verdict.state === 'valid' && t('scanVerdictValid')}
+            {verdict.state === 'pending' && t('scanVerdictPending')}
+            {verdict.state === 'cancelled' && t('scanVerdictCancelled')}
+            {verdict.state === 'not-found' && t('scanVerdictNotFound')}
+            {verdict.state === 'unreachable' && t('scanUnreachable')}
           </p>
 
           <button
@@ -417,7 +472,7 @@ export function Scan() {
           </div>
           {manualError && (
             <p className="scan__reject" role="alert">
-              {t('scanNoSuchId')}
+              {t(manualError === 'not-found' ? 'scanVerdictNotFound' : 'scanUnreachable')}
             </p>
           )}
         </form>

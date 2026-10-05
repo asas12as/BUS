@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { BackIcon, BusIcon, HomeIcon, ProfileIcon, SettingsIcon, StatusIcon } from './Icons'
 
 export function FooterNav() {

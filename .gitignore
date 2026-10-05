@@ -13,13 +13,22 @@ dist
 dist-ssr
 *.local
 
-# Build outputs. `dist` above does not match these, and both are large:
-# dist-offline is ~550 KB of emitted CSS/JS, phone/ is the ~550 KB single-file
-# artifact that `build:offline` produces for sideloading onto a handset.
-# Neither belongs in history: they are reproducible from source with
-# `npm run build:offline`.
-dist-offline
-phone
+# The Supabase CLI writes a resolved-version marker here. It is a cache, it
+# changes on every upgrade, and it says nothing about the schema.
+supabase/.temp
+
+# Secrets. The Supabase admin key bypasses row-level security entirely, so a
+# committed copy would hand anyone full read/write on the database. Vite also
+# loads .env* into the bundle, so a stray .env would publish the secret to every
+# visitor rather than just to git.
+.env
+.env.*
+!.env.example
+
+# Build output. `dist` above does not match this, and it is ~900 KB of emitted
+# CSS/JS. It does not belong in history: it is reproducible from source with
+# `npm run build`.
+dist
 
 # Editor directories and files
 .vscode/*

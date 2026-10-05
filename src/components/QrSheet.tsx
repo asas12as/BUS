@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import {
   buildQrPayload,
   encodeQrPayload,
@@ -17,7 +17,7 @@ import {
   weekDayMarks,
   weekDays
 } from '../lib/date'
-import { weeklyNumberLabel } from '../lib/storage'
+import { weeklyNumberLabel } from '../lib/weeklyNumber'
 import { PAYMENT_LABEL_KEY, SUB_STATUS_LABEL } from '../lib/status'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import type { SubStatus } from '../lib/types'

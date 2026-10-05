@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { GlobeIcon, LogoutIcon, ShieldIcon } from '../components/Icons'
 
 export function Settings() {

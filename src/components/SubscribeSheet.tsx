@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import {
   formatDayShort,
   formatMonthRange,
@@ -19,7 +19,7 @@ import {
 } from '../lib/date'
 import { formatMinutes } from '../lib/format'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
-import { weeklyNumberLabel } from '../lib/storage'
+import { weeklyNumberLabel } from '../lib/weeklyNumber'
 import { dayCountLabelKey } from '../lib/status'
 import { BusIcon, CheckIcon, ClockIcon, CloseIcon, MapPinIcon } from './Icons'
 import { StatusBadge } from './StatusBadge'
@@ -38,6 +38,7 @@ interface Props {
 export function SubscribeSheetBody({ requestedWeek, onClose }: Props) {
   const {
     t,
+    show,
     lang,
     places,
     subscribeWeek,
@@ -128,17 +129,24 @@ export function SubscribeSheetBody({ requestedWeek, onClose }: Props) {
     }
 
     // An existing subscription keeps its weekly number and payment state.
-    const result = hasActive
-      ? changePickup(currentUser.id, weekStart, { ...choice, days: chosenDays })
-      : subscribeWeek(currentUser.id, weekStart, { ...choice, days: chosenDays })
+    // Awaited, because the write is a round trip: checking `result.ok` on the
+    // Promise would always be undefined and every failure would look like a
+    // success.
+    void (async () => {
+      const result = hasActive
+        ? await changePickup(currentUser.id, weekStart, { ...choice, days: chosenDays })
+        : await subscribeWeek(currentUser.id, weekStart, { ...choice, days: chosenDays })
 
-    if (!result.ok) {
-      setError(t(result.error ?? 'selectPlace'))
-      return
-    }
-    setError('')
-    setDone(hasActive ? 'change' : 'subscribe')
-    setTimeout(onClose, 900)
+      if (!result.ok) {
+        // A local refusal carries a key, a server refusal prose. `show` decides
+        // which, rather than this screen guessing.
+        setError(show(result.error) ?? t('selectPlace'))
+        return
+      }
+      setError('')
+      setDone(hasActive ? 'change' : 'subscribe')
+      setTimeout(onClose, 900)
+    })()
   }
 
   // The fifth day is charged on its own, so the price follows the chosen count

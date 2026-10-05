@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import type { SubStatus } from '../lib/types'
 import {
   formatMonthRange,
@@ -8,7 +8,7 @@ import {
 eligibleWeekKeys,
   subDays
 } from '../lib/date'
-import { weeklyNumberLabel } from '../lib/storage'
+import { weeklyNumberLabel } from '../lib/weeklyNumber'
 import { StatusBadge } from '../components/StatusBadge'
 import { SubscribeSheet } from '../components/SubscribeSheet'
 import { SUB_STATUS_LABEL, SUB_STATUS_ORDER, dayCountLabelKey, weekTitleKey } from '../lib/status'

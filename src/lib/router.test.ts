@@ -3,9 +3,10 @@ import { isFileProtocol, shouldUseHashRoutes } from './router'
 
 /**
  * The routing decision has to hold for three delivery targets at once: the local
- * dev server, the GitHub Pages deployment, and the file:// phone artifact. They
- * disagree about where routes belong, and getting it wrong fails in a way that
- * only shows up for the person who did not write it, so it is pinned here.
+ * dev server, the GitHub Pages deployment, and a built index.html opened off
+ * disk. They disagree about where routes belong, and getting it wrong fails in a
+ * way that only shows up for the person who did not write it, so it is pinned
+ * here.
  */
 describe('shouldUseHashRoutes', () => {
   it('uses path routes for a normal http(s) dev server', () => {
@@ -13,7 +14,7 @@ describe('shouldUseHashRoutes', () => {
     expect(shouldUseHashRoutes('https:', undefined)).toBe(false)
   })
 
-  it('uses hash routes for the offline phone artifact', () => {
+  it('uses hash routes for a build opened off disk', () => {
     // Android Chrome refuses pushState on a file origin, so the path is not
     // available to route with at all.
     expect(shouldUseHashRoutes('file:', undefined)).toBe(true)

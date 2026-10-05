@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { Avatar } from './Avatar'
 import { CheckIcon, MapPinIcon } from './Icons'
 import type { WeekDayState } from '../lib/date'

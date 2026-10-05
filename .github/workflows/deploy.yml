@@ -38,10 +38,21 @@ jobs:
       # The same `build` script used locally: typecheck, then bundle. Passing
       # VITE_HASH_ROUTER is what makes the deployed app hash-route, so refreshing
       # or sharing a link works on Pages' static host. See src/AppRouter.tsx.
+      #
+      # Vite inlines VITE_* at build time from the environment, and the runner has
+      # no .env.local, so these two have to be handed over explicitly or the
+      # deployed app boots against a blank Supabase URL and every screen reads as
+      # signed out.
+      #
+      # Only these two are passed. The service-role admin key and the database
+      # password stay in the repository secrets and never reach a browser bundle;
+      # src/lib/repo.ts has no code path that needs them.
       - name: Build
         run: npm run build
         env:
           VITE_HASH_ROUTER: '1'
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

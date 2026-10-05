@@ -1,20 +1,24 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import type { TranslationKey } from '../i18n/translations'
 import { processAvatarFile } from '../lib/avatar'
 import { Avatar } from '../components/Avatar'
 import { CameraIcon, LockIcon, LogoutIcon, MailIcon, MapPinIcon, PhoneIcon, UserIcon } from '../components/Icons'
 
 export function Profile() {
-  const { t, lang, currentUser, updateProfile, changePassword, logout, places } = useApp()
+  const { t, show, lang, currentUser, updateProfile, changePassword, logout, places } = useApp()
   const navigate = useNavigate()
   const [name, setName] = useState(currentUser?.name ?? '')
   const [phone, setPhone] = useState(currentUser?.phone ?? '')
-  const [email, setEmail] = useState(currentUser?.email ?? '')
-  const [pickupLocation, setPickupLocation] = useState(currentUser?.pickupLocation ?? '')
+  const [email] = useState(currentUser?.email ?? '')
+  const [pickupLocation, setPickupLocation] = useState(
+    currentUser?.pickupLocation ?? places.find((p) => p.id === currentUser?.pickupId)?.name ?? ''
+  )
+  // Success is always a key this file chooses; failure may be a key or prose
+  // from the server, so it is rendered through show() rather than t().
   const [message, setMessage] = useState<TranslationKey | null>(null)
-  const [error, setError] = useState<TranslationKey | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [curPass, setCurPass] = useState('')
   const [newPass, setNewPass] = useState('')
   const [busy, setBusy] = useState(false)
@@ -44,49 +48,52 @@ export function Profile() {
       return
     }
 
-    const saved = updateProfile({ avatar: result.dataUrl })
+    const saved = await updateProfile({ avatar: result.dataUrl })
     if (saved.ok) {
       setMessage('photoSaved')
       setError(null)
     } else {
-      setError(saved.error ?? 'photoEncodeFailed')
+      setError(show(saved.error) ?? t('photoEncodeFailed'))
       setMessage(null)
     }
   }
 
-  const removePhoto = () => {
-    const saved = updateProfile({ avatar: null })
+  const removePhoto = async () => {
+    const saved = await updateProfile({ avatar: null })
     if (saved.ok) {
       setMessage('photoRemoved')
       setError(null)
     } else {
-      setError(saved.error ?? 'photoEncodeFailed')
+      setError(show(saved.error) ?? t('photoEncodeFailed'))
       setMessage(null)
     }
   }
 
-  const save = (e: React.FormEvent) => {
+  // Email is not editable here. It is the login identity and lives in
+  // auth.users, which a client cannot write, so offering the field would only
+  // ever accept a change and silently drop it.
+  const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    const result = updateProfile({ name, phone, email, pickupLocation })
+    const result = await updateProfile({ name, phone, pickupLocation })
     if (result.ok) {
       setMessage('updated')
       setError(null)
     } else {
-      setError(result.error ?? 'requiredFields')
+      setError(show(result.error) ?? t('requiredFields'))
       setMessage(null)
     }
   }
 
-  const changePass = (e: React.FormEvent) => {
+  const changePass = async (e: React.FormEvent) => {
     e.preventDefault()
-    const result = changePassword(curPass, newPass)
+    const result = await changePassword(curPass, newPass)
     if (result.ok) {
       setMessage('updated')
       setError(null)
       setCurPass('')
       setNewPass('')
     } else {
-      setError(result.error ?? 'invalidCredentials')
+      setError(show(result.error) ?? t('invalidCredentials'))
       setMessage(null)
     }
   }
@@ -175,13 +182,10 @@ export function Profile() {
               <MailIcon className="field__icon" />
               {t('email')}
             </span>
-            <input
-              className="field__input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              dir="ltr"
-              inputMode="email"
-            />
+            {/* Read only: the address identifies the account and cannot be
+                changed from a client. An admin can correct it from the dashboard. */}
+            <input className="field__input" value={email} dir="ltr" readOnly />
+            <small className="field__hint">{t('emailLockedHint')}</small>
           </label>
           <label className="field">
             <span className="field__label">
@@ -241,14 +245,16 @@ export function Profile() {
       </section>
 
       {message && <p className="form__ok">{t(message)}</p>}
-      {error && <p className="form__error">{t(error)}</p>}
+      {error && <p className="form__error">{error}</p>}
 
       <button
         type="button"
         className="btn btn--danger btn--block"
         onClick={() => {
-          logout()
-          navigate('/login')
+          // Awaited before navigating: the sign-out also clears the cached
+          // snapshot, and navigating first would briefly render the app with the
+          // previous rider's name still on it.
+          void logout().then(() => navigate('/login'))
         }}
       >
         <LogoutIcon className="btn__icon" />

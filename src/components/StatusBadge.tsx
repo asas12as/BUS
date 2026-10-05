@@ -1,5 +1,5 @@
 import type { SubStatus } from '../lib/types'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { SUB_STATUS_LABEL } from '../lib/status'
 
 export function StatusBadge({

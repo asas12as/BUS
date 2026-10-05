@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import type { TranslationKey } from '../i18n/translations'
 import { BusIcon, LockIcon, MailIcon, MapPinIcon, PhoneIcon, UserIcon } from '../components/Icons'
 
@@ -24,20 +24,42 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 }
 
 export function SignUp() {
-  const { t, signUp, isAdmin, places } = useApp()
+  const { t, show, signUp, places } = useApp()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
-  const [error, setError] = useState<TranslationKey | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<TranslationKey | null>(null)
+  const [pending, setPending] = useState(false)
 
-  const submit = (e: React.FormEvent) => {
+  /**
+   * Awaited, and the outcome has two shapes.
+   *
+   * With email confirmation on, GoTrue creates the account but returns no
+   * session. That is a success from the rider's point of view -- the account
+   * exists -- so it shows "check your email" rather than an error, and there is
+   * nothing to navigate to.
+   */
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const result = signUp({ name, phone, email, password, pickupLocation })
-    if (result.ok) navigate(isAdmin ? '/admin' : '/')
-    else setError(result.error ?? 'requiredFields')
+    setPending(true)
+    setError(null)
+    setNotice(null)
+
+    const result = await signUp({ name, phone, email, password, pickupLocation })
+    setPending(false)
+
+    if (result.ok) {
+      // From the result, not from `isAdmin`: that is still the pre-sign-up
+      // value, since the context has not re-rendered by the time we navigate.
+      navigate(result.role === 'admin' ? '/admin' : '/')
+      return
+    }
+    if (result.needsConfirmation) setNotice('checkYourEmail')
+    else setError(show(result.error) ?? t('requiredFields'))
   }
 
   return (
@@ -128,10 +150,11 @@ export function SignUp() {
           />
         </label>
 
-        {error && <p className="form__error">{t(error)}</p>}
+        {notice && <p className="form__ok">{t(notice)}</p>}
+        {error && <p className="form__error">{error}</p>}
 
-        <button type="submit" className="btn btn--primary btn--block">
-          {t('signUp')}
+        <button type="submit" className="btn btn--primary btn--block" disabled={pending}>
+          {pending ? t('signingIn') : t('signUp')}
         </button>
       </form>
       <p className="auth__switch">

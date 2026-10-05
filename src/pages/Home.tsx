@@ -1,4 +1,4 @@
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { WeekCalendar } from '../components/WeekCalendar'
 import { StatusBadge } from '../components/StatusBadge'
 import { eligibleWeekKeys } from '../lib/date'

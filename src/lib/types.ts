@@ -13,14 +13,12 @@ export interface User {
   name: string
   phone: string
   email: string
-  passwordHash: string
   role: Role
   createdAt: string
   /**
    * Profile picture as a downscaled data URL. Optional and absent for everyone
-   * who never set one, so older saved data needs no migration. Stored inline
-   * because this app has no backend and photos must survive with the rest of
-   * the local data.
+   * who never set one. Stored inline rather than in a bucket because it is a
+   * column on the profile row and the app has no image storage to upload to.
    */
   avatar?: string | null
   /**
@@ -79,22 +77,11 @@ export interface PlaceRequest {
   createdAt: string
 }
 
-export interface Session {
-  userId: string
-  role: Role
-}
-
-export interface AppData {
-  users: User[]
-  session: Session | null
-  days: Record<string, Record<string, DayEntry>>
-  subscriptions: Record<string, Record<string, WeekSubscription>>
-  /**
-   * Highest number issued per week. Kept separately from the subscriptions so a
-   * cancelled or deleted number is never re-issued to someone else.
-   */
-  weekCounters: Record<string, number>
-  places: PickupPlace[]
-  placeRequests: PlaceRequest[]
-  lang: Lang
-}
+/**
+ * There is no whole-app state type here any more.
+ *
+ * It used to describe one localStorage blob holding every user, subscription and
+ * place on the device, and it went when that blob did. Keeping the shape around
+ * would only invite somebody to build a second source of truth beside the
+ * database.
+ */

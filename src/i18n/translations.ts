@@ -4,10 +4,13 @@ export const en = {
   welcomeBack: 'Welcome back',
   createAccount: 'Create account',
   signIn: 'Sign in',
+  signingIn: 'Signing in…',
   signUp: 'Sign up',
   logout: 'Log out',
   noAccountYet: 'No account yet?',
   alreadyRegistered: 'Already registered?',
+  /** Shown when signup succeeded but the rider must confirm their address first. */
+  checkYourEmail: 'Account created. Check your email to confirm it, then sign in.',
   fullName: 'Full name',
   phoneNumber: 'Phone number',
   email: 'Email',
@@ -56,6 +59,12 @@ export const en = {
   openWeekIs: 'Subscriptions are open for the week of {n}',
   holdingThisWeek: 'You are already subscribed this week',
   subscribeWindow: 'Open Wednesday 4:30 PM - Friday midnight',
+  /** Shown when the server could not be reached and there is a cached snapshot. */
+  offlineStale: 'Offline. What you see is a saved copy and may not be current.',
+  /** Shown when the server could not be reached and there is nothing saved. */
+  offlineReadOnly: 'Offline. You can look at your pass but cannot save changes.',
+  notAllowed: 'You do not have permission to do that',
+  cannotDeleteSelf: 'You cannot delete your own account',
   awaitingConfirmation: 'Waiting for admin confirmation',
   cancelSubscription: 'Cancel subscription',
   subscriptionCancelled: 'Subscription cancelled',
@@ -115,6 +124,7 @@ export const en = {
   cancel: 'Cancel',
   memberId: 'Member ID',
   storageBlocked: 'This browser is blocking local storage, so nothing can be saved. Open this file in a normal browser tab, or turn off private/incognito mode.',
+  emailLockedHint: 'Your email is your login. Ask an admin to change it.',
   internalId: 'Internal ID',
   role: 'Role',
   user: 'User',
@@ -178,12 +188,14 @@ export const en = {
   scanDenied: 'Camera access was refused',
   scanDeniedBody: 'Allow camera access in the browser, or type the weekly ID below instead.',
   scanManual: 'Or enter a weekly ID',
-  scanManualHint: 'Checked against the saved subscriptions',
-  scanNoSuchId: 'No subscription with that number this week',
-  scanRecord: 'Saved record',
-  scanRecordNone: 'No saved record for this week',
-  scanRecordOk: 'Matches the saved record',
-  scanRecordDiffers: 'Differs from the saved record',
+  scanManualHint: 'Checked against the server, needs a connection',
+  scanRecord: 'Server says',
+  scanChecking: 'Checking with the server…',
+  scanVerdictValid: 'Valid for this week, ready to travel',
+  scanVerdictPending: 'Not valid yet, waiting on payment',
+  scanVerdictCancelled: 'Not valid, this pass was cancelled',
+  scanVerdictNotFound: 'No subscription with that number this week',
+  scanUnreachable: 'Could not reach the server, so this is unchecked',
   yourSubscription: 'Your subscription',
   changePickupPlace: 'Change pickup place',
   changePickup: 'Update pickup place',
@@ -206,12 +218,29 @@ export const en = {
   resetPassword: 'Reset password',
   schedule: 'Schedule',
   noSchedule: 'No days scheduled',
+  noRoute: 'No route',
   setStatus: 'Set status',
   noUsers: 'No users found',
   savedSuccessfully: 'Changes saved'
 } as const
 
 export type TranslationKey = keyof typeof en
+
+/**
+ * Renders a message that may or may not be a translation key.
+ *
+ * A refusal from the app carries a key, because the app knows the reason. A
+ * refusal from Postgres carries prose, because the database has no idea what
+ * language this person reads. Both arrive on the same field, so this is what
+ * decides: a known key is translated, anything else is shown as written.
+ *
+ * Without the fallback, `t()` would return undefined for every server message
+ * and the screen would render a blank line where the explanation should be.
+ */
+export function renderMessage(t: (key: TranslationKey) => string, message: string | undefined): string | null {
+  if (!message) return null
+  return (t as (key: string) => string | undefined)(message) ?? message
+}
 
 export const ar: Record<TranslationKey, string> = {
   // A brand name is a name, not a word, so it is not transliterated into Arabic.
@@ -222,10 +251,12 @@ export const ar: Record<TranslationKey, string> = {
   welcomeBack: 'مرحباً بعودتك',
   createAccount: 'إنشاء حساب',
   signIn: 'تسجيل الدخول',
+  signingIn: 'جارٍ تسجيل الدخول…',
   signUp: 'إنشاء حساب جديد',
   logout: 'تسجيل الخروج',
   noAccountYet: 'ليس لديك حساب؟',
   alreadyRegistered: 'مسجل مسبقاً؟',
+  checkYourEmail: 'تم إنشاء الحساب. راجع بريدك لتأكيده ثم سجل الدخول.',
   fullName: 'الاسم الكامل',
   phoneNumber: 'رقم الهاتف',
   email: 'البريد الإلكتروني',
@@ -273,6 +304,10 @@ export const ar: Record<TranslationKey, string> = {
   notTargetWeek: 'هذا الأسبوع غير متاح للاشتراك',
   openWeekIs: 'الاشتراك متاح لأسبوع {n}',
   holdingThisWeek: 'أنت مشترك بالفعل في هذا الأسبوع',
+  offlineStale: 'غير متصل. ما تراه نسخة محفوظة وقد لا تكون محدّثة.',
+  offlineReadOnly: 'غير متصل. يمكنك عرض تذكرةك لكن لا يمكنك حفظ التغييرات.',
+  notAllowed: 'ليس لديك صلاحية للقيام بذلك',
+  cannotDeleteSelf: 'لا يمكنك حذف حسابك',
   subscribeWindow: 'مفتوح من الأربعاء ٤:٣٠ م حتى منتصف ليل الجمعة',
   awaitingConfirmation: 'بانتظار تأكيد المدير',
   cancelSubscription: 'إلغاء الاشتراك',
@@ -333,6 +368,7 @@ export const ar: Record<TranslationKey, string> = {
   cancel: 'إلغاء',
   memberId: 'رقم العضوية',
   storageBlocked: 'هذا المتصفح يمنع التخزين المحلي، لذا لا يمكن حفظ أي شيء. افتح الملف في تبويب متصفح عادي أو أوقف وضع التصفح الخاص.',
+  emailLockedHint: 'بريدك هو وسيلة الدخول. اطلب من المسؤول تغييره.',
   internalId: 'المعرّف الداخلي',
   role: 'الدور',
   user: 'مستخدم',
@@ -396,12 +432,14 @@ export const ar: Record<TranslationKey, string> = {
   scanDenied: 'تم رفض الوصول إلى الكاميرا',
   scanDeniedBody: 'اسمح بالوصول إلى الكاميرا من المتصفح، أو اكتب رقم الأسبوع بالأسفل.',
   scanManual: 'أو أدخل رقم الأسبوع',
-  scanManualHint: 'يتم التحقق من الاشتراكات المحفوظة',
-  scanNoSuchId: 'لا يوجد اشتراك بهذا الرقم لهذا الأسبوع',
-  scanRecord: 'السجل المحفوظ',
-  scanRecordNone: 'لا يوجد سجل محفوظ لهذا الأسبوع',
-  scanRecordOk: 'يطابق السجل المحفوظ',
-  scanRecordDiffers: 'يختلف عن السجل المحفوظ',
+  scanManualHint: 'يتم التحقق لدى الخادم مباشرة، ويحتاج اتصالاً بالإنترنت',
+  scanRecord: 'رد الخادم',
+  scanChecking: 'جارٍ التحقق لدى الخادم…',
+  scanVerdictValid: 'ساري لهذا الأسبوع، يمكنه الصعود',
+  scanVerdictPending: 'غير ساري بعد، بانتظار تأكيد الدفع',
+  scanVerdictCancelled: 'غير ساري، تم إلغاء هذا الاشتراك',
+  scanVerdictNotFound: 'لا يوجد اشتراك بهذا الرقم لهذا الأسبوع',
+  scanUnreachable: 'تعذر الوصول إلى الخادم، النتيجة غير مؤكدة',
   yourSubscription: 'اشتراكك',
   changePickupPlace: 'تغيير مكان الالتقاط',
   changePickup: 'تحديث مكان الالتقاط',
@@ -424,6 +462,7 @@ export const ar: Record<TranslationKey, string> = {
   resetPassword: 'إعادة تعيين كلمة المرور',
   schedule: 'الجدول',
   noSchedule: 'لا توجد أيام مجدولة',
+  noRoute: 'بدون خط',
   setStatus: 'تحديد الحالة',
   noUsers: 'لا يوجد مستخدمون',
   savedSuccessfully: 'تم حفظ التغييرات'

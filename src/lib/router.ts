@@ -10,7 +10,8 @@
  * different reasons:
  *
  * - Opened from a file:// URL, the path is the file itself and Chrome refuses
- *   pushState for file origins. This is the offline phone artifact.
+ *   pushState for file origins. This is opening a built index.html straight off
+ *   disk, which is still how the build gets checked on a handset.
  * - Served by a static host that returns 404 for any path it cannot map to a
  *   file. GitHub Pages is the case that matters here: with path routing the app
  *   navigates fine in-session, but refreshing or sharing `/scan` asks the server

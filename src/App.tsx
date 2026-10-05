@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { AppProvider, useApp } from './context/AppContext'
+import { AppProvider } from './context/AppContext'
+import { useApp } from './context/useApp'
 import { AppRouter } from './AppRouter'
 import { Layout } from './components/Layout'
 import { SignUp } from './pages/SignUp'
@@ -31,17 +32,27 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Without localStorage nothing can be saved, so say so instead of letting the
- * user type a subscription that silently disappears.
+ * Three states worth interrupting for, and nothing else.
+ *
+ * A missing database, no network, and a cache that could not be written are all
+ * cases where the app is showing something that is not the server's answer. Left
+ * unsaid, a rider would tap subscribe, see it appear, and believe it worked.
+ *
+ * Deliberately not shown: the cache itself. Offline is a supported state, and the
+ * per-screen indicators already say which parts are not current.
  */
-function StorageWarning() {
-  const { storageOk, t } = useApp()
-  if (storageOk) return null
-  return (
-    <div className="storagewarn" role="alert">
-      {t('storageBlocked')}
-    </div>
-  )
+function ConnectionWarnings() {
+  const { online, stale, booting, t } = useApp()
+  if (booting) return null
+
+  if (!online) {
+    return (
+      <div className="storagewarn" role="status">
+        {stale ? t('offlineStale') : t('offlineReadOnly')}
+      </div>
+    )
+  }
+  return null
 }
 
 function AppRoutes() {
@@ -104,7 +115,7 @@ export default function App() {
   return (
     <AppProvider>
       <AppRouter>
-        <StorageWarning />
+        <ConnectionWarnings />
         <AppRoutes />
       </AppRouter>
     </AppProvider>

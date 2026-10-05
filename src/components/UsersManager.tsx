@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { useApp } from '../context/AppContext'
+import { useMemo, useState } from 'react'
+import { useApp } from '../context/useApp'
 import type { SubStatus, User } from '../lib/types'
-import { eligibleWeekKeys, formatMonthRange, fromISO, weekDays, weekKey } from '../lib/date'
-import { ROUTES, weeklyNumberLabel } from '../lib/storage'
+import { addDays, eligibleWeekKeys, formatMonthRange, fromISO, weekDays } from '../lib/date'
+import { weeklyNumberLabel } from '../lib/weeklyNumber'
+import { ROUTES } from '../lib/routes'
 import { weekTitleKey } from '../lib/status'
 import { subDays } from '../lib/date'
 import { StatusBadge } from './StatusBadge'
@@ -62,8 +63,21 @@ function UserSubscriptions({ user }: { user: User }) {
     allPlaces
   } = useApp()
   const [thisWeek, nextWeek] = eligibleWeekKeys()
+  const [failed, setFailed] = useState('')
   const label = (key: string) => (weekTitleKey(key, thisWeek))
   const range = (key: string) => formatMonthRange(weekDays(fromISO(key)), lang)
+
+  /**
+   * Runs an admin write and reports the outcome inline.
+   *
+   * The controls are selects and a two-step delete, so there is nowhere else for
+   * a failure to appear. A refused change silently reverting would leave the
+   * admin believing something was saved that was not.
+   */
+  const run = async (work: () => Promise<{ ok?: boolean; error?: string }>) => {
+    const result = await work()
+    setFailed(result.ok ? '' : result.error ?? '')
+  }
 
   return (
     <ul className="usrow__subs">
@@ -96,11 +110,13 @@ function UserSubscriptions({ user }: { user: User }) {
                   // Changing the pickup must not disturb the chosen days, so they are carried
                   // over from the existing subscription.
                   if (place) {
-                    changePickup(user.id, week, {
-                      id: place.id,
-                      name: place.name,
-                      days: subDays(sub)
-                    })
+                    void run(() =>
+                      changePickup(user.id, week, {
+                        id: place.id,
+                        name: place.name,
+                        days: subDays(sub)
+                      })
+                    )
                   }
                 }}
               >
@@ -116,7 +132,7 @@ function UserSubscriptions({ user }: { user: User }) {
               <select
                 className="field__input"
                 value={status}
-                onChange={(e) => setWeekStatus(user.id, week, e.target.value as SubStatus)}
+                onChange={(e) => void run(() => setWeekStatus(user.id, week, e.target.value as SubStatus))}
               >
                 <option value="none">{t('notSubscribed')}</option>
                 <option value="pending">{t('pendingPayment')}</option>
@@ -126,10 +142,11 @@ function UserSubscriptions({ user }: { user: User }) {
                 <ConfirmDelete
                   label={t('delete')}
                   confirmLabel={t('confirmDelete')}
-                  onConfirm={() => deleteSubscription(user.id, week)}
+                  onConfirm={() => void run(() => deleteSubscription(user.id, week))}
                 />
               )}
             </div>
+            {failed && <p className="form__error">{failed}</p>}
           </li>
         )
       })}
@@ -137,13 +154,28 @@ function UserSubscriptions({ user }: { user: User }) {
   )
 }
 
+/**
+ * The fortnight of assigned buses for one rider.
+ *
+ * Dates with no entry are listed too, blank, because an unassigned day is the
+ * thing an admin needs to see: an entry that is missing and an entry that is
+ * empty look identical once they are in the same list, and only showing the
+ * assigned ones would hide the gap.
+ */
 function UserSchedule({ user }: { user: User }) {
   const { t, daysFor, updateDay } = useApp()
-  const days = daysFor(user.id)
-  const entries = Object.values(days)
-    .filter((d) => d.date >= weekKey(new Date()))
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 14)
+  const assigned = daysFor(user.id)
+
+  const entries = useMemo(() => {
+    const out: Array<{ date: string; route: string; time: string }> = []
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    for (let i = 0; i < 14; i += 1) {
+      const date = addDays(today, i).toISOString().slice(0, 10)
+      out.push({ date, route: assigned[date]?.route ?? '', time: assigned[date]?.time ?? '' })
+    }
+    return out
+  }, [assigned])
 
   return (
     <div className="usrow__schedule">
@@ -157,8 +189,9 @@ function UserSchedule({ user }: { user: User }) {
               <select
                 className="field__input"
                 value={day.route}
-                onChange={(e) => updateDay(user.id, day.date, { route: e.target.value })}
+                onChange={(e) => void updateDay(user.id, day.date, { route: e.target.value })}
               >
+                <option value="">{t('noRoute')}</option>
                 {ROUTES.map((route) => (
                   <option key={route} value={route}>
                     {route}
@@ -169,7 +202,7 @@ function UserSchedule({ user }: { user: User }) {
                 className="field__input"
                 type="time"
                 value={day.time}
-                onChange={(e) => updateDay(user.id, day.date, { time: e.target.value })}
+                onChange={(e) => void updateDay(user.id, day.date, { time: e.target.value })}
               />
             </li>
           ))}
@@ -180,27 +213,53 @@ function UserSchedule({ user }: { user: User }) {
 }
 
 function UserRow({ user }: { user: User }) {
-  const { t, updateUser, setUserRole, setUserPassword, deleteUser } = useApp()
+  const {
+    t,
+    adminUpdateProfile,
+    setUserRole,
+    adminSetPassword,
+    adminDeleteUser
+  } = useApp()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(user.name)
   const [phone, setPhone] = useState(user.phone)
   const [email, setEmail] = useState(user.email)
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
+  const [failed, setFailed] = useState('')
 
-  const save = () => {
-    const result = updateUser(user.id, { name, phone, email })
-    setMessage(result.ok ? t('savedSuccessfully') : t(result.error ?? 'requiredFields'))
+  const save = async () => {
+    const result = await adminUpdateProfile(user.id, { name, phone, email })
+    if (result.ok) {
+      setMessage(t('savedSuccessfully'))
+      setFailed('')
+    } else {
+      // Server refusals come back as prose from Postgres, so this is shown
+      // as-is. The validation keys the context checks arrive as keys instead,
+      // and both are rendered through t().
+      setFailed(result.error ?? '')
+    }
   }
 
-  const resetPassword = () => {
-    const result = setUserPassword(user.id, password)
+  const resetPassword = async () => {
+    const result = await adminSetPassword(user.id, password)
     if (result.ok) {
       setPassword('')
       setMessage(t('savedSuccessfully'))
+      setFailed('')
     } else {
-      setMessage(t(result.error ?? 'passwordTooShort'))
+      setFailed(result.error ?? 'passwordTooShort')
     }
+  }
+
+  const promote = async () => {
+    const result = await setUserRole(user.id, user.role === 'user' ? 'admin' : 'user')
+    if (!result.ok) setFailed(result.error ?? '')
+  }
+
+  const closeAccount = async () => {
+    const result = await adminDeleteUser(user.id)
+    if (!result.ok) setFailed(result.error ?? '')
   }
 
   return (
@@ -250,7 +309,11 @@ function UserRow({ user }: { user: User }) {
                 placeholder={t('email')}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <button type="button" className="btn btn--primary btn--sm" onClick={save}>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={() => void save()}
+              >
                 {t('save')}
               </button>
             </div>
@@ -263,7 +326,7 @@ function UserRow({ user }: { user: User }) {
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
-                  onClick={() => setUserRole(user.id, 'admin')}
+                  onClick={() => void promote()}
                 >
                   {t('makeAdmin')}
                 </button>
@@ -271,7 +334,7 @@ function UserRow({ user }: { user: User }) {
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
-                  onClick={() => setUserRole(user.id, 'user')}
+                  onClick={() => void promote()}
                 >
                   {t('makeUser')}
                 </button>
@@ -292,7 +355,7 @@ function UserRow({ user }: { user: User }) {
               <button
                 type="button"
                 className="btn btn--ghost btn--sm"
-                onClick={resetPassword}
+                onClick={() => void resetPassword()}
                 disabled={!password}
               >
                 {t('resetPassword')}
@@ -314,9 +377,10 @@ function UserRow({ user }: { user: User }) {
             <ConfirmDelete
               label={t('deleteUser')}
               confirmLabel={t('confirmDelete')}
-              onConfirm={() => deleteUser(user.id)}
+              onConfirm={() => void closeAccount()}
             />
             {message && <span className="usrow__message">{message}</span>}
+            {failed && <span className="form__error">{failed}</span>}
           </div>
         </div>
       )}

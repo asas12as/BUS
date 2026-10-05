@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { MapPinIcon, CheckIcon, CloseIcon } from './Icons'
 
 /** Two-step delete so a misclick cannot destroy a record. */
@@ -44,6 +44,7 @@ export function PlacesManager() {
   const {
     t,
     allPlaces,
+    allUsers,
     addPlace,
     renamePlace,
     archivePlace,
@@ -58,14 +59,29 @@ export function PlacesManager() {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
-  const submitNew = () => {
-    if (addPlace(name).ok) setName('')
+  const [error, setError] = useState('')
+
+  // Awaited rather than checked inline: the write is a round trip to the
+  // server, so a synchronous `result.ok` would always be undefined and the
+  // field would clear even when the save was refused.
+  const submitNew = async () => {
+    const result = await addPlace(name)
+    if (result.ok) {
+      setName('')
+      setError('')
+    } else {
+      setError(result.error ?? '')
+    }
   }
 
-  const submitRename = (id: string) => {
-    if (renamePlace(id, draft).ok) {
+  const submitRename = async (id: string) => {
+    const result = await renamePlace(id, draft)
+    if (result.ok) {
       setEditing(null)
       setDraft('')
+      setError('')
+    } else {
+      setError(result.error ?? '')
     }
   }
 
@@ -82,7 +98,10 @@ export function PlacesManager() {
         ) : (
           <ul className="statuslist">
             {placeRequests.map((request, index) => {
-              const who = request.userId
+              // Resolved from the rider list rather than showing a raw uuid. The
+              // list is empty offline or for a non-admin, in which case the
+              // request id is all that is honest to show.
+              const who = allUsers.find((u) => u.id === request.userId)?.name ?? request.userId
               return (
                 <li
                   key={request.id}
@@ -91,7 +110,7 @@ export function PlacesManager() {
                 >
                   <div className="statuslist__day">
                     <strong>{request.name}</strong>
-                    <small>{t('requestedBy')} {who === 'u_demo' ? 'Demo Rider' : who}</small>
+                    <small>{t('requestedBy')} {who}</small>
                   </div>
                   <div className="rowactions">
                     <button
@@ -135,14 +154,16 @@ export function PlacesManager() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') submitNew()
+              if (e.key === 'Enter') void submitNew()
             }}
             placeholder={t('placeName')}
           />
-          <button type="button" className="btn btn--primary" onClick={submitNew}>
+          <button type="button" className="btn btn--primary" onClick={() => void submitNew()}>
             {t('addPlace')}
           </button>
         </div>
+
+        {error && <p className="form__error">{error}</p>}
 
         {allPlaces.length === 0 ? (
           <p className="empty">{t('noPlaces')}</p>
@@ -157,13 +178,13 @@ export function PlacesManager() {
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') submitRename(place.id)
+                        if (e.key === 'Enter') void submitRename(place.id)
                       }}
                     />
                     <button
                       type="button"
                       className="btn btn--primary btn--sm"
-                      onClick={() => submitRename(place.id)}
+                      onClick={() => void submitRename(place.id)}
                     >
                       <CheckIcon className="btn__icon" />
                     </button>

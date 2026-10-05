@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { eligibleWeekKeys, formatMonthRange, fromISO, weekDays } from '../lib/date'
 import { weekTitleKey } from '../lib/status'
 import { PlacesManager } from '../components/PlacesManager'

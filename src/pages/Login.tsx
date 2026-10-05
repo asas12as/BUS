@@ -1,22 +1,31 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
-import type { TranslationKey } from '../i18n/translations'
+import { useApp } from '../context/useApp'
 import { LockIcon, MailIcon } from '../components/Icons'
 import { AuthShell } from './SignUp'
 
 export function Login() {
-  const { t, login, isAdmin } = useApp()
+  const { t, show, login } = useApp()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<TranslationKey | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
 
-  const submit = (e: React.FormEvent) => {
+  // Awaited: the sign-in is a round trip to the auth server, and the redirect
+  // needs the answer. isAdmin is read after the fact because role comes from the
+  // profile row the sign-in loads, not from anything known before it.
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const result = login(email, password)
-    if (result.ok) navigate(isAdmin ? '/admin' : '/')
-    else setError(result.error ?? 'invalidCredentials')
+    setPending(true)
+    setError(null)
+    const result = await login(email, password)
+    // The role comes back with the result rather than from `isAdmin`, which is
+    // still false here: context has not re-rendered yet, so the pre-sign-in
+    // value is read.
+    if (result.ok) navigate(result.role === 'admin' ? '/admin' : '/')
+    else setError(show(result.error) ?? t('invalidCredentials'))
+    setPending(false)
   }
 
   return (
@@ -54,10 +63,10 @@ export function Login() {
           />
         </label>
 
-        {error && <p className="form__error">{t(error)}</p>}
+        {error && <p className="form__error">{error}</p>}
 
-        <button type="submit" className="btn btn--primary btn--block">
-          {t('signIn')}
+        <button type="submit" className="btn btn--primary btn--block" disabled={pending}>
+          {pending ? t('signingIn') : t('signIn')}
         </button>
       </form>
       <p className="auth__hint">{t('adminHint')}</p>

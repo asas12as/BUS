@@ -1,139 +1,49 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+/**
+ * The app's context, now backed by Supabase.
+ *
+ * Keeps the same surface the screens already use, so pages did not have to be
+ * rewritten in the same pass. What changed underneath is the important part:
+ *
+ * - The session comes from Supabase auth. There is no `isAdminEmail` string
+ *   comparison, so an admin is a row-level-security decision rather than a
+ *   devtools-away bypass.
+ * - Nothing is written to localStorage except a snapshot of what the server
+ *   returned. There is no write-behind and no queue: offline is read-only.
+ * - Every action returns a Promise and reports why it failed, because a network
+ *   refusal and a validation failure are different things to show a rider.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type {
-  AppData,
-  DayEntry,
-  Lang,
-  PickupPlace,
-  PlaceRequest,
-  Role,
-  SubStatus,
-  User,
-  WeekSubscription
-} from '../lib/types'
-import { useAppData } from '../lib/useAppData'
+import type { DayEntry, PickupPlace, PlaceRequest, SubStatus, User, WeekSubscription } from '../lib/types'
+import { useSessionStore } from '../lib/useSessionStore'
+import { AppContext, type AppContextValue } from './useApp'
+import { blockedByCurrentWeek, isValidDayChoice, isWindowOpen, minutesRemaining, minutesUntilOpen, targetableWeekKey, weekKey } from '../lib/date'
 import { isValidEmail, isValidName, isValidPassword, isValidPhone } from '../lib/validate'
-import {
-  activePlaces,
-  addPlace as applyAddPlace,
-  approvePlaceRequest as applyApproveRequest,
-  archivePlace as applyArchivePlace,
-  changePickup as applyChangePickup,
-  clearWeek as applyClearWeek,
-  confirmWeek as applyConfirmWeek,
-  deletePlace as applyDeletePlace,
-  deletePlaceRequest as applyDeletePlaceRequest,
-  deleteUser as applyDeleteUser,
-  deleteWeekSub as applyDeleteWeekSub,
-  emailExists,
-  generateDays,
-  hashPassword,
-  needsNewNumber,
-  openPlaceRequests,
-  overallStatus,
-  rejectPlaceRequest as applyRejectRequest,
-  renamePlace as applyRenamePlace,
-  requestPlace,
-  restorePlace as applyRestorePlace,
-  setLang as applyLang,
-  setUserPassword as applySetUserPassword,
-  setWeekStatus as applySetWeekStatus,
-  subscribeWeek as applySubscribeWeek,
-  updateDay as applyUpdateDay,
-  updateUserRecord as applyUpdateUserRecord,
-  upsertUser,
-  weeklyNumberAvailable,
-  weekStatus,
-  type PickupChoice
-} from '../lib/storage'
-import { ar, en, type TranslationKey } from '../i18n/translations'
-import {
-  blockedByCurrentWeek,
-  isValidDayChoice,
-  isWindowOpen,
-  minutesRemaining,
-  minutesUntilOpen,
-  targetableWeekKey,
-  weekKey
-} from '../lib/date'
+import { ar, en, renderMessage, type TranslationKey } from '../i18n/translations'
 
-interface Result {
-  ok: boolean
-  error?: TranslationKey
+function openRequests(requests: PlaceRequest[]): PlaceRequest[] {
+  return requests.filter((r) => r.status === 'open')
 }
 
-interface AppContextValue {
-  data: AppData
-  lang: Lang
-  dir: 'ltr' | 'rtl'
-  t: (key: TranslationKey) => string
-  toggleLang: () => void
-  currentUser: User | null
-  isAdmin: boolean
-  signUp: (input: {
-    name: string
-    phone: string
-    email: string
-    password: string
-    /** Free text, the same "place" the subscription sheet collects. */
-    pickupLocation: string
-  }) => Result
-  login: (email: string, password: string) => Result
-  logout: () => void
-
-  daysFor: (userId: string) => Record<string, DayEntry>
-  weekSubFor: (userId: string, weekStart: string) => WeekSubscription | null
-  /** False when the browser refuses localStorage, e.g. some file:// contexts. */
-  storageOk: boolean
-  weekStatusFor: (userId: string, weekStart: string) => SubStatus
-  overallStatusFor: (userId: string) => SubStatus
-  subscribeWeek: (userId: string, weekStart: string, choice: PickupChoice) => Result
-  cancelSubscription: (userId: string, weekStart: string) => void
-  confirmWeek: (userId: string, weekStart: string) => void
-
-  /** Subscription window state, recomputed each render so the countdown stays live. */
-  windowOpen: boolean
-  /** The one week that may be subscribed right now. */
-  targetableWeek: string
-  /** Why subscribing is blocked, or null when it is allowed. */
-  subscribeBlock: 'windowClosed' | 'holdingThisWeek' | null
-  /** Minutes until the window opens or closes, 0 when not applicable. */
-  windowMinutesLeft: number
-
-  places: PickupPlace[]
-  allPlaces: PickupPlace[]
-  addPlace: (name: string) => Result
-  renamePlace: (id: string, name: string) => Result
-  archivePlace: (id: string) => void
-  restorePlace: (id: string) => void
-  placeRequests: PlaceRequest[]
-  approveRequest: (id: string) => void
-  rejectRequest: (id: string) => void
-
-  updateProfile: (patch: Partial<Pick<User, 'name' | 'phone' | 'email' | 'avatar' | 'pickupId' | 'pickupLocation'>>) => Result
-  changePassword: (current: string, next: string) => Result
-  adminUsers: User[]
-
-  /* ------------------------- admin: full control ------------------------- */
-  allUsers: User[]
-  changePickup: (userId: string, weekStart: string, choice: PickupChoice) => Result
-  setWeekStatus: (userId: string, weekStart: string, status: SubStatus) => void
-  deleteSubscription: (userId: string, weekStart: string) => void
-  deletePlace: (id: string) => void
-  deletePlaceRequest: (id: string) => void
-  updateUser: (id: string, patch: Partial<Pick<User, 'name' | 'phone' | 'email'>>) => Result
-  setUserRole: (id: string, role: Role) => void
-  setUserPassword: (id: string, plain: string) => Result
-  deleteUser: (id: string) => void
-  updateDay: (userId: string, date: string, patch: Partial<Pick<DayEntry, 'route' | 'time'>>) => void
+function activePlaces(places: PickupPlace[]): PickupPlace[] {
+  return places.filter((p) => p.active)
 }
 
-const AppContext = createContext<AppContextValue | null>(null)
+/**
+ * Most urgent state wins, because that is what the rider must act on:
+ * not subscribed > pending payment > subscribed.
+ */
+function worstStatus(statuses: SubStatus[]): SubStatus {
+  if (statuses.length === 0) return 'none'
+  if (statuses.includes('none')) return 'none'
+  if (statuses.includes('pending')) return 'pending'
+  return 'subscribed'
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { data, persist, simpleAction, storageOk } = useAppData()
+  const store = useSessionStore()
 
-  const lang = data.lang
+  const lang = store.data.lang
   const dir: 'ltr' | 'rtl' = lang === 'ar' ? 'rtl' : 'ltr'
 
   useEffect(() => {
@@ -142,444 +52,414 @@ export function AppProvider({ children }: { children: ReactNode }) {
     root.dir = dir
   }, [lang, dir])
 
-  const t = useCallback(
-    (key: TranslationKey) => (lang === 'ar' ? ar[key] : en[key]),
-    [lang]
-  )
+  const t = useCallback((key: TranslationKey) => (lang === 'ar' ? ar[key] : en[key]), [lang])
 
-  const toggleLang = useCallback(() => {
-    const next: Lang = lang === 'en' ? 'ar' : 'en'
-    persist(applyLang(data, next))
-  }, [data, lang, persist])
+  /**
+   * Renders a message that may be a key or prose.
+   *
+   * Exposed because every action result carries one string field that is either
+   * kind: the app knows its own reasons and sends keys, Postgres sends English
+   * it cannot localise. Screens need one helper rather than a decision each.
+   */
+  const show = useCallback((message: string | undefined) => renderMessage(t, message), [t])
 
-  const currentUser = useMemo(() => {
-    if (!data.session) return null
-    return data.users.find((u) => u.id === data.session?.userId) ?? null
-  }, [data])
-
+  const currentUser = store.data.user
   const isAdmin = currentUser?.role === 'admin'
 
-  const signUp: AppContextValue['signUp'] = useCallback(
-    (input) => {
-      if (
-        !input.name.trim() ||
-        !input.phone.trim() ||
-        !input.email.trim() ||
-        !input.password ||
-        !input.pickupLocation.trim()
-      ) {
-        return { ok: false, error: 'requiredFields' }
-      }
-      if (!isValidName(input.name)) {
-        return { ok: false, error: 'nameTooShort' }
-      }
-      if (!isValidEmail(input.email)) {
-        return { ok: false, error: 'invalidEmail' }
-      }
-      if (!isValidPhone(input.phone)) {
-        return { ok: false, error: 'invalidPhone' }
-      }
-      if (!isValidPassword(input.password)) {
-        return { ok: false, error: 'passwordTooShort' }
-      }
-      // Resolve the typed name against the curated list. A rider who typed an
-      // existing place stores its id; a brand new one stores the text and is
-      // filed as a request, exactly like the subscription sheet does.
-      const wanted = input.pickupLocation.trim()
-      const known =
-        data.places.find((p) => p.active && p.name.trim().toLowerCase() === wanted.toLowerCase()) ??
-        null
-      if (emailExists(data.users, input.email)) {
-        return { ok: false, error: 'emailTaken' }
-      }
-      const user: User = {
-        id: `u_${Date.now().toString(36)}`,
-        name: input.name.trim(),
-        phone: input.phone.trim(),
-        email: input.email.trim().toLowerCase(),
-        passwordHash: hashPassword(input.password),
-        role: 'user',
-        pickupId: known?.id ?? null,
-        pickupLocation: known ? known.name : wanted,
-        createdAt: new Date().toISOString()
-      }
-      const withUser = upsertUser(data, user)
-      const withDays = {
-        ...withUser,
-        days: { ...withUser.days, [user.id]: generateDays() },
-        subscriptions: { ...withUser.subscriptions, [user.id]: {} }
-      }
-      persist(
-        known
-          ? { ...withDays, session: { userId: user.id, role: 'user' } }
-          : {
-              ...requestPlace(withDays, user.id, wanted),
-              session: { userId: user.id, role: 'user' }
-            }
-      )
-      return { ok: true }
-    },
-    [data, persist]
-  )
-
-  const login: AppContextValue['login'] = useCallback(
-    (email, password) => {
-      const found = data.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
-      if (!found || found.passwordHash !== hashPassword(password)) {
-        return { ok: false, error: 'invalidCredentials' }
-      }
-      persist({ ...data, session: { userId: found.id, role: found.role } })
-      return { ok: true }
-    },
-    [data, persist]
-  )
-
-  const logout = useCallback(() => {
-    persist({ ...data, session: null })
-  }, [data, persist])
-
-  const daysFor = useCallback(
-    (userId: string) => data.days[userId] ?? {},
-    [data]
-  )
+  const indexWeeks = useMemo(() => {
+    const map = new Map<string, WeekSubscription>()
+    for (const entry of store.data.weeks) map.set(`${entry.userId}|${entry.sub.weekStart}`, entry.sub)
+    return map
+  }, [store.data.weeks])
 
   const weekSubFor = useCallback(
-    (userId: string, weekStart: string) => data.subscriptions[userId]?.[weekStart] ?? null,
-    [data]
+    (userId: string, weekStart: string) => indexWeeks.get(`${userId}|${weekStart}`) ?? null,
+    [indexWeeks]
   )
 
   const weekStatusFor = useCallback(
-    (userId: string, weekStart: string) => weekStatus(data, userId, weekStart),
-    [data]
+    (userId: string, weekStart: string) => indexWeeks.get(`${userId}|${weekStart}`)?.status ?? 'none',
+    [indexWeeks]
   )
 
   const overallStatusFor = useCallback(
-    (userId: string) => overallStatus(data, userId),
-    [data]
-  )
-
-  const subscribeWeek: AppContextValue['subscribeWeek'] = useCallback(
-    (userId, weekStart, choice) => {
-      if (!choice.name.trim() && choice.id === null) {
-        return { ok: false, error: 'selectPlace' }
-      }
-      // The day picker is a UI affordance like the place list, so the count and
-      // the range are re-checked here rather than trusted from the form.
-      if (!isValidDayChoice(choice.days)) {
-        return { ok: false, error: 'pickDaysCount' }
-      }
-      // Enforced here as well as in the UI: the sheet can be left open across
-      // the closing minute, and the window is a business rule, not a hint.
-      if (!isWindowOpen()) return { ok: false, error: 'windowClosed' }
-      if (weekStart !== targetableWeekKey()) return { ok: false, error: 'notTargetWeek' }
-      // One week at a time: a live subscription for the week in progress blocks
-      // taking on the next one.
-      if (blockedByCurrentWeek(weekStatus(data, userId, weekKey(new Date())))) {
-        return { ok: false, error: 'holdingThisWeek' }
-      }
-      // Only a brand new weekly number can run out; an existing one is kept.
-      if (needsNewNumber(data, userId, weekStart) && !weeklyNumberAvailable(data, weekStart)) {
-        return { ok: false, error: 'weekFull' }
-      }
-      persist(applySubscribeWeek(data, userId, weekStart, choice))
-      return { ok: true }
-    },
-    [data, persist]
-  )
-
-  /** Changes an existing pickup without reissuing the weekly number. */
-  const changePickup: AppContextValue['changePickup'] = useCallback(
-    (userId, weekStart, choice) => {
-      if (!choice.name.trim() && choice.id === null) {
-        return { ok: false, error: 'selectPlace' }
-      }
-      if (!isValidDayChoice(choice.days)) {
-        return { ok: false, error: 'pickDaysCount' }
-      }
-      persist(applyChangePickup(data, userId, weekStart, choice))
-      return { ok: true }
-    },
-    [data, persist]
+    (userId: string) =>
+      worstStatus(
+        [...indexWeeks.entries()]
+          .filter(([key]) => key.startsWith(`${userId}|`))
+          .map(([, sub]) => sub.status)
+      ),
+    [indexWeeks]
   )
 
   /**
-   * User-initiated cancel. Blocked once the admin has verified the payment,
-   * since the user has already paid. Admins keep their own routes
-   * (setWeekStatus / deleteSubscription), which are deliberately not gated.
+   * The rider list (admin-only) and the day entries behind the calendars.
+   *
+   * The list is not part of the shared load, because a rider may not read it:
+   * the profiles select policy limits a non-admin to their own row, so asking
+   * for it unconditionally would fail the request for every rider.
+   *
+   * The day entries are everybody's business in one sense and nobody's in
+   * another. The RLS policy on day_entries lets a rider read their own dates and
+   * lets an admin read anyone's, so both roles load through the same call and
+   * only the ids differ. That is the whole reason a rider's own calendar is not
+   * permanently empty: the shared load skips these rows, so they have to be
+   * fetched here or not at all.
+   *
+   * Refetched when the sync state changes rather than only on mount, so an admin
+   * who changes a role or closes an account sees the list correct itself without
+   * a reload.
    */
-  const cancelSubscription = useCallback(
-    (userId: string, weekStart: string) => {
-      if (weekStatus(data, userId, weekStart) === 'subscribed') return
-      persist(applyClearWeek(data, userId, weekStart))
+  // Stable identities for the "nothing loaded yet" case, so deriving the empty
+  // value above does not hand every consumer a fresh object on every render.
+  const EMPTY_USERS: User[] = []
+  const EMPTY_SCHEDULES: Record<string, Record<string, DayEntry>> = {}
+
+  const [loaded, setLoaded] = useState<{
+    ownerId: string
+    users: User[]
+    schedules: Record<string, Record<string, DayEntry>>
+  } | null>(null)
+
+  // Derived rather than reset in the effect. Keyed by the id the data belongs to,
+  // so signing out and back in as somebody else renders empty immediately
+  // instead of showing the previous rider's schedule for a frame, and no
+  // setState has to fire during the effect to clear it.
+  const owned = loaded?.ownerId === currentUser?.id ? loaded : null
+  const allUsers = owned?.users ?? EMPTY_USERS
+  const schedules = owned?.schedules ?? EMPTY_SCHEDULES
+
+  useEffect(() => {
+    if (!currentUser) return
+    let cancelled = false
+    void (async () => {
+      try {
+        // The rider list is admin-only, so a rider skips the call entirely
+        // rather than having the server refuse it.
+        const users = isAdmin ? await store.allUsers() : []
+        if (cancelled) return
+
+        // Only the next fortnight, which is all any calendar shows. Fetching
+        // every rider's whole history would be a lot of rows for a panel that
+        // slices to fourteen.
+        const start = new Date()
+        const end = new Date(start.getTime() + 14 * 86400000)
+        const first = start.toISOString().slice(0, 10)
+        const last = end.toISOString().slice(0, 10)
+
+        const load = async (id: string) => {
+          const days = await store.daysFor(id)
+          const recent: Record<string, DayEntry> = {}
+          for (const [date, entry] of Object.entries(days)) {
+            if (date >= first && date <= last) recent[date] = entry
+          }
+          return recent
+        }
+
+        const entries: Record<string, Record<string, DayEntry>> = {}
+        for (const user of users) {
+          if (cancelled) return
+          entries[user.id] = await load(user.id)
+        }
+        // The rider's own entry, whether or not they are an admin, so
+        // WeekCalendar has something to draw.
+        entries[currentUser.id] = await load(currentUser.id)
+        if (!cancelled) setLoaded({ ownerId: currentUser.id, users, schedules: entries })
+      } catch {
+        // Refused or offline. The screens render empty rather than stale, so
+        // nothing on screen claims to be current when it is not.
+        if (!cancelled) {
+          setLoaded({ ownerId: currentUser.id, users: [], schedules: {} })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    currentUser,
+    isAdmin,
+    store,
+    store.sync.stale,
+    store.sync.error,
+    store.data.weeks
+  ])
+
+  /* ------------------------------- actions ------------------------------ */
+
+  const subscribeWeek = useCallback<AppContextValue['subscribeWeek']>(
+    async (userId, weekStart, choice) => {
+      if (!choice.name.trim() && choice.id === null) return { error: 'selectPlace', local: true }
+      if (!isValidDayChoice(choice.days)) return { error: 'pickDaysCount', local: true }
+      // Re-checked here rather than trusted from the form: the sheet can be left
+      // open across the closing minute, and the window is a business rule.
+      if (!store.sync.online) return { error: 'offlineReadOnly', local: true }
+      if (!isWindowOpen()) return { error: 'windowClosed', local: true }
+      if (weekStart !== targetableWeekKey()) return { error: 'notTargetWeek', local: true }
+      if (blockedByCurrentWeek(weekStatusFor(userId, weekKey(new Date())))) {
+        return { error: 'holdingThisWeek', local: true }
+      }
+      return store.subscribeWeek(userId, weekStart, choice)
     },
-    [data, persist]
+    [store, weekStatusFor]
   )
 
-  const confirmWeek = simpleAction(applyConfirmWeek)
+  const changePickup = useCallback<AppContextValue['changePickup']>(
+    async (userId, weekStart, choice) => {
+      if (!choice.name.trim() && choice.id === null) return { error: 'selectPlace', local: true }
+      if (!isValidDayChoice(choice.days)) return { error: 'pickDaysCount', local: true }
+      return store.changePickup(userId, weekStart, choice)
+    },
+    [store]
+  )
+
+  const signUp = useCallback<AppContextValue['signUp']>(
+    async (input) => {
+      // Same checks as before the cutover. They live in the client because they
+      // are about giving immediate feedback on what was typed; the server
+      // re-checks the things that matter for integrity.
+      if (!input.name.trim() || !input.phone.trim() || !input.email.trim() || !input.password) {
+        return { error: 'requiredFields', local: true }
+      }
+      if (!input.pickupLocation.trim()) return { error: 'selectPlace', local: true }
+      if (!isValidName(input.name)) return { error: 'nameTooShort', local: true }
+      if (!isValidEmail(input.email)) return { error: 'invalidEmail', local: true }
+      if (!isValidPhone(input.phone)) return { error: 'invalidPhone', local: true }
+      if (!isValidPassword(input.password)) return { error: 'passwordTooShort', local: true }
+      return store.signUp(input)
+    },
+    [store]
+  )
+
+  const login = useCallback<AppContextValue['login']>(
+    async (email, password) => {
+      if (!email.trim() || !password) return { error: 'requiredFields', local: true }
+      if (!isValidEmail(email)) return { error: 'invalidEmail', local: true }
+      return store.signIn(email, password)
+    },
+    [store]
+  )
+
+  const logout = useCallback(() => store.signOut(), [store])
 
   /**
-   * Window state is derived rather than stored, so it cannot go stale against
-   * the data, but it still has to be recomputed as the clock moves: without a
-   * tick the countdown would freeze and the buttons would not disable
-   * themselves when the window opens or shuts.
+   * Interface language.
+   *
+   * A no-op when the write would be refused: the language lives on the profile
+   * row, so switching it offline has nowhere to go. Returning without switching
+   * is better than switching on screen and reverting, which would flicker the
+   * whole interface for a change that did not happen.
+   */
+  const online = store.sync.online
+  const toggleLang = useCallback(() => {
+    if (!online) return
+    void store.toggleLang()
+  }, [store, online])
+
+  const updateProfile = useCallback<AppContextValue['updateProfile']>(
+    async (patch) => {
+      if (patch.name !== undefined && !isValidName(patch.name)) {
+        return { error: 'nameTooShort', local: true }
+      }
+      return store.updateProfile(patch)
+    },
+    [store]
+  )
+
+  const changePassword = useCallback<AppContextValue['changePassword']>(
+    async (current, next) => {
+      if (!isValidPassword(next)) return { error: 'passwordTooShort', local: true }
+      if (current === next) return { error: 'passwordUnchanged', local: true }
+      return store.changePassword(current, next)
+    },
+    [store]
+  )
+
+  /* ------------------------------ admin actions --------------------------- */
+
+  const adminUpdateProfile = useCallback<AppContextValue['adminUpdateProfile']>(
+    async (id, patch) => {
+      if (patch.name !== undefined && !isValidName(patch.name)) {
+        return { error: 'nameTooShort', local: true }
+      }
+      if (patch.phone !== undefined && !isValidPhone(patch.phone)) {
+        return { error: 'invalidPhone', local: true }
+      }
+      if (patch.email !== undefined && !isValidEmail(patch.email)) {
+        return { error: 'invalidEmail', local: true }
+      }
+      return store.adminUpdateProfile(id, patch)
+    },
+    [store]
+  )
+
+  const adminSetPassword = useCallback<AppContextValue['adminSetPassword']>(
+    async (id, password) => {
+      if (!isValidPassword(password)) return { error: 'passwordTooShort', local: true }
+      return store.adminSetPassword(id, password)
+    },
+    [store]
+  )
+
+  const adminDeleteUser = useCallback<AppContextValue['adminDeleteUser']>(
+    async (id) => {
+      if (id === currentUser?.id) return { error: 'cannotDeleteSelf', local: true }
+      return store.adminDeleteUser(id)
+    },
+    [store, currentUser]
+  )
+
+  const daysFor = useCallback<AppContextValue['daysFor']>(
+    (userId) => schedules[userId] ?? {},
+    [schedules]
+  )
+
+  const updateDay = useCallback<AppContextValue['updateDay']>(
+    async (userId, date, patch) => {
+      const result = await store.updateDay(userId, date, patch)
+      // Applied to the local copy too, so the control does not flicker back to
+      // its old value while the reload is in flight. Written through `loaded`
+      // rather than the derived `schedules`, which is read-only.
+      if (result.ok) {
+        setLoaded((prev) => {
+          if (!prev || prev.ownerId !== currentUser?.id) return prev
+          const forUser = prev.schedules[userId] ?? {}
+          const existing = forUser[date]
+          return {
+            ...prev,
+            schedules: {
+              ...prev.schedules,
+              [userId]: {
+                ...forUser,
+                [date]: {
+                  date,
+                  route: patch.route ?? existing?.route ?? '',
+                  time: patch.time ?? existing?.time ?? ''
+                }
+              }
+            }
+          }
+        })
+      }
+      return result
+    },
+    [store, currentUser?.id]
+  )
+
+  /* ------------------------------ window state --------------------------- */
+
+  /**
+   * Derived each render rather than stored, so it cannot drift from the clock.
+   * The tick is what keeps the countdown live and the buttons disabled as the
+   * window opens and shuts.
    */
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 30000)
     return () => window.clearInterval(id)
   }, [])
-
   const windowOpen = isWindowOpen(new Date(now))
   const targetableWeek = targetableWeekKey(new Date(now))
-  const windowMinutesLeft = windowOpen ? minutesRemaining(new Date(now)) : minutesUntilOpen(new Date(now))
+  const windowMinutesLeft = windowOpen
+    ? minutesRemaining(new Date(now))
+    : minutesUntilOpen(new Date(now))
 
-  const subscribeBlock: AppContextValue['subscribeBlock'] = !windowOpen
-    ? 'windowClosed'
-    : blockedByCurrentWeek(currentUser ? weekStatus(data, currentUser.id, weekKey(new Date())) : 'none')
-      ? 'holdingThisWeek'
-      : null
-
-  const places = useMemo(() => activePlaces(data), [data])
-  const allPlaces = data.places
-  const placeRequests = useMemo(() => openPlaceRequests(data), [data])
-
-  const addPlace: AppContextValue['addPlace'] = useCallback(
-    (name) => {
-      if (!name.trim()) return { ok: false, error: 'placeNameRequired' }
-      persist(applyAddPlace(data, name))
-      return { ok: true }
-    },
-    [data, persist]
-  )
-
-  const renamePlace: AppContextValue['renamePlace'] = useCallback(
-    (id, name) => {
-      if (!name.trim()) return { ok: false, error: 'placeNameRequired' }
-      persist(applyRenamePlace(data, id, name))
-      return { ok: true }
-    },
-    [data, persist]
-  )
-
-  const archivePlace = simpleAction(applyArchivePlace)
-
-  const restorePlace = simpleAction(applyRestorePlace)
-
-  const approveRequest = simpleAction(applyApproveRequest)
-
-  const rejectRequest = simpleAction(applyRejectRequest)
-
-  const updateProfile: AppContextValue['updateProfile'] = useCallback(
-    (patch) => {
-      if (!currentUser) return { ok: false, error: 'invalidCredentials' }
-      if (patch.email && emailExists(data.users, patch.email) && patch.email !== currentUser.email) {
-        return { ok: false, error: 'emailTaken' }
-      }
-      if (patch.email && !isValidEmail(patch.email)) {
-        return { ok: false, error: 'invalidEmail' }
-      }
-      if (patch.name !== undefined && !isValidName(patch.name)) {
-        return { ok: false, error: 'nameTooShort' }
-      }
-      // Same resolution as sign-up: match the curated list, otherwise keep the text
-      // and point at no place until an admin creates one.
-      const wanted = patch.pickupLocation?.trim()
-      const known = wanted
-        ? data.places.find(
-            (p) => p.active && p.name.trim().toLowerCase() === wanted.toLowerCase()
-          ) ?? null
+  const subscribeBlock: AppContextValue['subscribeBlock'] = !store.sync.online
+    ? 'offlineReadOnly'
+    : !windowOpen
+      ? 'windowClosed'
+      : blockedByCurrentWeek(
+          currentUser ? weekStatusFor(currentUser.id, weekKey(new Date())) : 'none'
+        )
+        ? 'holdingThisWeek'
         : null
-      const next: User = {
-        ...currentUser,
-        ...patch,
-        ...(wanted === undefined
-          ? {}
-          : { pickupId: known?.id ?? null, pickupLocation: known ? known.name : wanted })
-      }
-      persist(upsertUser(data, next))
-      return { ok: true }
-    },
-    [currentUser, data, persist]
-  )
-
-  const changePassword: AppContextValue['changePassword'] = useCallback(
-    (current, next) => {
-      if (!currentUser) return { ok: false, error: 'invalidCredentials' }
-      if (currentUser.passwordHash !== hashPassword(current)) {
-        return { ok: false, error: 'invalidCredentials' }
-      }
-      if (!isValidPassword(next)) return { ok: false, error: 'passwordTooShort' }
-      persist(upsertUser(data, { ...currentUser, passwordHash: hashPassword(next) }))
-      return { ok: true }
-    },
-    [currentUser, data, persist]
-  )
-
-  const allUsers = useMemo(() => (isAdmin ? data.users : []), [data, isAdmin])
-
-  const adminUsers = useMemo(
-    () => (isAdmin ? data.users.filter((u) => u.role === 'user') : []),
-    [data, isAdmin]
-  )
-
-  const setWeekStatus: AppContextValue['setWeekStatus'] = useCallback(
-    (userId, weekStart, status) => {
-      // Admin can subscribe on a user's behalf, which must also take a number.
-      if (
-        status !== 'none' &&
-        needsNewNumber(data, userId, weekStart) &&
-        !weeklyNumberAvailable(data, weekStart)
-      ) {
-        return
-      }
-      persist(applySetWeekStatus(data, userId, weekStart, status))
-    },
-    [data, persist]
-  )
-
-  const deleteSubscription: AppContextValue['deleteSubscription'] = simpleAction(applyDeleteWeekSub)
-
-  const deletePlace: AppContextValue['deletePlace'] = simpleAction(applyDeletePlace)
-
-  const deletePlaceRequest: AppContextValue['deletePlaceRequest'] = simpleAction(applyDeletePlaceRequest)
-
-  const updateUser: AppContextValue['updateUser'] = useCallback(
-    (id, patch) => {
-      const target = data.users.find((u) => u.id === id)
-      if (!target) return { ok: false, error: 'invalidCredentials' }
-      const name = patch.name !== undefined ? patch.name.trim() : target.name
-      const phone = patch.phone !== undefined ? patch.phone.trim() : target.phone
-      const email = patch.email !== undefined ? patch.email.trim() : target.email
-      if (!name || !phone || !email) return { ok: false, error: 'requiredFields' }
-      if (!isValidEmail(email)) return { ok: false, error: 'invalidEmail' }
-      if (emailExists(data.users.filter((u) => u.id !== id), email)) {
-        return { ok: false, error: 'emailTaken' }
-      }
-      persist(applyUpdateUserRecord(data, id, { name, phone, email: email.toLowerCase() }))
-      return { ok: true }
-    },
-    [data, persist]
-  )
-
-  const setUserRole: AppContextValue['setUserRole'] = simpleAction((d: AppData, id: string, role: Role) =>
-    applyUpdateUserRecord(d, id, { role })
-  )
-
-  const setUserPassword: AppContextValue['setUserPassword'] = useCallback(
-    (id, plain) => {
-      if (!isValidPassword(plain)) return { ok: false, error: 'passwordTooShort' }
-      persist(applySetUserPassword(data, id, plain))
-      return { ok: true }
-    },
-    [data, persist]
-  )
-
-  const deleteUser: AppContextValue['deleteUser'] = simpleAction(applyDeleteUser)
-
-  const updateDay: AppContextValue['updateDay'] = simpleAction(applyUpdateDay)
 
   const value = useMemo<AppContextValue>(
     () => ({
-      data,
+      data: store.data,
+      sync: store.sync,
       lang,
       dir,
       t,
+      show,
       toggleLang,
       currentUser,
       isAdmin,
+      booting: store.sync.loading,
+      online,
+      stale: store.sync.stale,
       signUp,
       login,
       logout,
-      daysFor,
+      places: activePlaces(store.data.places),
+      allPlaces: store.data.places,
       weekSubFor,
       weekStatusFor,
       overallStatusFor,
+      allUsers,
+      adminUsers: allUsers.filter((u) => u.role === 'user'),
+      adminUpdateProfile,
+      adminSetPassword,
+      adminDeleteUser,
+      daysFor,
+      updateDay,
       subscribeWeek,
-      cancelSubscription,
-      confirmWeek,
+      cancelSubscription: store.cancelSubscription,
+      confirmWeek: store.confirmWeek,
+      changePickup,
+      setWeekStatus: store.setWeekStatus,
+      deleteSubscription: store.deleteSubscription,
       windowOpen,
       targetableWeek,
       subscribeBlock,
       windowMinutesLeft,
-      places,
-      allPlaces,
-      addPlace,
-      renamePlace,
-      archivePlace,
-      restorePlace,
-      placeRequests,
-      approveRequest,
-      rejectRequest,
+      addPlace: store.createPlace,
+      renamePlace: store.renamePlace,
+      archivePlace: store.archivePlace,
+      restorePlace: store.restorePlace,
+      deletePlace: store.deletePlace,
+      placeRequests: openRequests(store.data.placeRequests),
+      approveRequest: store.approveRequest,
+      rejectRequest: store.rejectRequest,
+      deletePlaceRequest: store.deleteRequest,
+      requestPlace: store.requestPlace,
       updateProfile,
       changePassword,
-      adminUsers,
-      allUsers,
-      storageOk,
-      changePickup,
-      setWeekStatus,
-      deleteSubscription,
-      deletePlace,
-      deletePlaceRequest,
-      updateUser,
-      setUserRole,
-      setUserPassword,
-      deleteUser,
-      updateDay
+      setUserRole: store.setUserRole,
+      resolveWeeklyNumber: store.resolveWeeklyNumber
     }),
     [
-      data,
+      store,
       lang,
       dir,
       t,
+      show,
       toggleLang,
       currentUser,
       isAdmin,
       signUp,
       login,
       logout,
-      daysFor,
       weekSubFor,
       weekStatusFor,
       overallStatusFor,
+      allUsers,
       subscribeWeek,
-      cancelSubscription,
-      confirmWeek,
+      changePickup,
+      updateProfile,
+      changePassword,
+      adminUpdateProfile,
+      adminSetPassword,
+      adminDeleteUser,
+      daysFor,
+      updateDay,
       windowOpen,
       targetableWeek,
       subscribeBlock,
       windowMinutesLeft,
-      places,
-      allPlaces,
-      addPlace,
-      renamePlace,
-      archivePlace,
-      restorePlace,
-      placeRequests,
-      approveRequest,
-      rejectRequest,
-      updateProfile,
-      changePassword,
-      adminUsers,
-      allUsers,
-      storageOk,
-      changePickup,
-      setWeekStatus,
-      deleteSubscription,
-      deletePlace,
-      deletePlaceRequest,
-      updateUser,
-      setUserRole,
-      setUserPassword,
-      deleteUser,
-      updateDay
+      online
     ]
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
-}
-
-export function useApp(): AppContextValue {
-  const ctx = useContext(AppContext)
-  if (!ctx) throw new Error('useApp must be used inside AppProvider')
-  return ctx
 }

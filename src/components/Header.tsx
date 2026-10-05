@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import { applyTheme, resolveTheme, storeTheme } from '../lib/theme'
 import type { Theme } from '../lib/types'
 import { BusIcon, MoonIcon, QrCodeIcon, ShieldIcon, SunIcon } from './Icons'

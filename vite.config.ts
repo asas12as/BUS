@@ -16,8 +16,9 @@ export default defineConfig({
   plugins: [react()],
   build: {
     // The display font is inlined rather than emitted as a separate file. It is
-    // the only asset over the default 4KB limit, and inlining it keeps the app
-    // to a single request while matching what the offline build already does.
+    // the only asset over the default 4KB limit, and inlining it keeps the app to
+    // a single request, so a first paint on a slow connection is one round trip
+    // rather than two.
     assetsInlineLimit: 128 * 1024
   }
 })

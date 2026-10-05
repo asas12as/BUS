@@ -6,16 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:offline": "tsc -b && vite build --config vite.offline.config.ts && node scripts/make-offline.mjs && node verify-offline.mjs",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck:tests": "tsc -b tsconfig.vitest.json --pretty false",
-    "verify": "npm run lint && npm run typecheck:tests && npm run test && npm run build:offline",
+    "verify": "npm run lint && npm run typecheck:tests && npm run test && npm run build",
     "preview": "vite preview",
     "replit": "node scripts/replit-serve.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "jsqr": "^1.4.0",
     "qrcode-generator": "^2.0.4",
     "react": "^19.2.8",
