@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+# Publishes every push to main, so the live URL always matches main. Manual
+# runs are allowed too, which is the way to re-publish without a code change.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the repo, and grant the two things Pages deployment
+# specifically needs. Scoped to this workflow rather than the whole repository.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. Without this, two pushes in quick succession race to
+# publish, and the slower one can win and leave main deployed as the older commit.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22 matches modules/nodejs-22 in .replit, so Pages and Replit build
+      # the same code against the same runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # The same `build` script used locally: typecheck, then bundle. Passing
+      # VITE_HASH_ROUTER is what makes the deployed app hash-route, so refreshing
+      # or sharing a link works on Pages' static host. See src/AppRouter.tsx.
+      - name: Build
+        run: npm run build
+        env:
+          VITE_HASH_ROUTER: '1'
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
