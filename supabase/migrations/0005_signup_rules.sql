@@ -22,10 +22,9 @@
 --
 --    A rider cannot pick a bus on an install that has none published, and buses
 --    can only be published by an admin, so somebody has to be the first. The
---    first account ever registered becomes an admin, and the pickup is only
---    optional while the bus list is empty. Both exceptions close as soon as the
---    install is in use; see the trigger for the full reasoning and, for the
---    admin one, for what it costs.
+--    first account ever registered becomes an admin. The pickup itself is
+--    required by the form whenever there is a bus to choose, which is the only
+--    point at which a rider can be stopped. See the trigger.
 --
 -- 2. Three words in a name, and a number that could actually be dialled.
 --
@@ -163,13 +162,32 @@ comment on function public.is_valid_phone(text) is
 -- Two exceptions, and they are different ones:
 --
 --   The first account ever becomes the admin. Without it the app cannot install
---   itself: no admin means no published bus, and no published bus means no
---   pickup to require.
+--   itself: no admin means no published bus, and no published bus means nothing
+--   for a rider to pick on the form.
 --
---   The pickup is only skippable while no bus has ever been published, because
---   after that there is always something to choose.
+--   A missing pickup is recorded rather than refused. See below; this one was
+--   learned the hard way.
 --
 -- The reasoning behind the first is written out at the assignment below.
+--
+-- ORDER OF OPERATIONS, because getting this wrong is expensive.
+--
+-- Apply this migration only after the client that sends `pickup` is deployed,
+-- or accept that the pickup is simply absent until it is. The trigger refuses a
+-- pickup that is present but unrecognised, but tolerates one that is missing --
+-- and that is not leniency, it is the difference between a rider with no pickup
+-- and a signup form that does not work at all.
+--
+-- The first version raised on a missing pickup, and the result of applying it
+-- ahead of the client was every registration on the live site failing with
+-- "Database error saving new user" and no way to tell a rider why. A migration
+-- that rejects input an older deployed client does not send is a production
+-- outage, not a validation rule.
+--
+-- Deploy order that works: migrate, then ship. Migrate the other way round --
+-- ship the client first, against a trigger that does not know about the field
+-- yet -- and the pickup is dropped on the floor until the migration lands, which
+-- is survivable.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -182,7 +200,6 @@ declare
   v_pickup text := btrim(coalesce(new.raw_user_meta_data ->> 'pickup', ''));
   v_place  public.places%rowtype;
   v_first  boolean;
-  v_nothing_to_pick boolean;
 begin
   if not public.is_valid_name(v_name) then
     raise exception 'name must be at least 3 words'
@@ -208,11 +225,21 @@ begin
   -- the reason this would be rediscovered as a bug later.
   v_first := not exists (select 1 from public.profiles);
   --
-  -- v_nothing_to_pick: there are no buses at all, so a required pickup would be
-  -- unanswerable. Only ever true on an install that has never published a bus.
-  -- With buses present the rider picks one, bootstrap or not.
-  v_nothing_to_pick := not exists (select 1 from public.places);
-
+  -- A pickup that was sent has to be a real, current bus. Anything else is a
+  -- client bug or a tamper, and is refused.
+  --
+  -- A pickup that was not sent is recorded as no pickup rather than refused.
+  -- It used to raise here, which turned a deploy ordering mistake into a total
+  -- signup outage: this trigger went on before the client that sends the field
+  -- was deployed, so every registration failed with GoTrue's opaque "Database
+  -- error saving new user" and the rider could not register at all.
+  --
+  -- The rule is enforced where it can be seen. The form makes the choice
+  -- required whenever there are buses to choose from, which is the only place a
+  -- rider can actually be stopped -- a signup is anonymous, and refusing it for
+  -- a missing field is a worse failure than a rider with no pickup set who can
+  -- still be asked for it on their profile. Once this is deployed everywhere the
+  -- two agree, and the remaining gap is a direct API call.
   if v_pickup <> '' then
     select * into v_place
       from public.places
@@ -222,9 +249,6 @@ begin
       raise exception 'pickup must be one of the listed buses'
         using errcode = '22023';
     end if;
-  elsif not v_nothing_to_pick then
-    raise exception 'pickup bus is required'
-      using errcode = '22023';
   end if;
 
   insert into public.profiles (
