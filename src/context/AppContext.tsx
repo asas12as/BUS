@@ -225,7 +225,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!input.name.trim() || !input.phone.trim() || !input.password) {
         return { error: 'requiredFields', local: true }
       }
-      if (!input.pickupLocation.trim()) return { error: 'selectPlace', local: true }
+      // Required whenever there is a bus to pick. With an empty list there is
+      // nothing to pick and the field is disabled, so requiring it would block
+      // the only account that can add the first one -- see the bootstrap note in
+      // supabase/migrations/0005_signup_rules.sql. The server draws the line in
+      // the same place and refuses a signup with no pickup once buses exist.
+      const buses = store.data.places.filter((p) => p.active)
+      if (buses.length > 0 && !input.pickupLocation.trim()) {
+        return { error: 'selectPlace', local: true }
+      }
       if (!isValidName(input.name)) return { error: 'nameTooShort', local: true }
       if (input.email.trim() && !isValidEmail(input.email)) {
         return { error: 'invalidEmail', local: true }

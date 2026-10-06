@@ -37,9 +37,12 @@ export function SignUp() {
 
   // The buses an admin has published. Archived ones are already filtered out by
   // the context, so whatever is here is a place a rider may actually be picked up
-  // from. When the list is empty the field cannot be filled in at all, which is
-  // why the form says so outright instead of offering a free-text box the server
-  // would reject.
+  // from.
+  //
+  // An empty list is not an error state to apologise for: it is a fresh install
+  // with nothing published yet. The field is disabled, and the first account to
+  // arrive becomes the admin who adds the buses -- so the form says that plainly
+  // rather than implying the rider has done something wrong.
   const options = places.filter((place) => place.active)
   const noPlaces = options.length === 0
 
@@ -124,9 +127,9 @@ export function SignUp() {
         </label>
 
         {/* Chosen from the buses an admin maintains, not typed in.
-            Required, because the pickup decides who to expect on the bus. With no
-            buses published there is nothing to offer, so the field is disabled
-            and the reason is stated rather than leaving a silent empty box. */}
+            Required once there are any, because the pickup decides who to expect
+            on the bus. With none published the field is disabled and the first
+            account becomes the admin who adds them. */}
         <label className="field">
           <span className="field__label">
             <MapPinIcon className="field__icon" />
@@ -137,9 +140,9 @@ export function SignUp() {
             value={pickupLocation}
             onChange={(e) => setPickupLocation(e.target.value)}
             disabled={noPlaces}
-            required
+            required={!noPlaces}
           >
-            <option value="">{noPlaces ? t('noBusesYet') : t('pickupBusChoose')}</option>
+            <option value="">{noPlaces ? t('firstAccountBecomesAdmin') : t('pickupBusChoose')}</option>
             {options.map((place) => (
               <option key={place.id} value={place.name}>
                 {place.name}

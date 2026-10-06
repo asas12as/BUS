@@ -124,6 +124,8 @@ export async function signUp(input: {
   name: string
   lang: 'en' | 'ar'
   phone: string
+  /** The bus chosen from the admin's list. Empty only on the first-ever signup. */
+  pickup: string
 }): Promise<SignUpOutcome> {
   const contactEmail = input.email.trim().toLowerCase()
   let derived: string
@@ -143,6 +145,15 @@ export async function signUp(input: {
           name: input.name.trim(),
           lang: input.lang,
           phone: normalizePhone(input.phone) ?? '',
+          // The pickup travels with the signup rather than being written after
+          // it. That makes the signup one transaction, so there is no state in
+          // which an account exists with the form half-satisfied, and it puts
+          // "pickup is required" in the database trigger where it cannot be
+          // skipped by calling this endpoint directly.
+          //
+          // Empty only when the install has no buses published yet: the first
+          // account on an untouched install becomes the admin who adds them.
+          pickup: input.pickup.trim() || null,
           // Null rather than omitted: an empty string would be stored as if the
           // rider had typed an address, and contact would show them a blank row.
           email: contactEmail || null

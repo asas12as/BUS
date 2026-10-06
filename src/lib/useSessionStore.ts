@@ -463,7 +463,8 @@ export function useSessionStore(): SessionStore {
           password: input.password,
           name: input.name,
           lang: data.lang,
-          phone: input.phone
+          phone: input.phone,
+          pickup: input.pickupLocation
         })
         if (outcome.kind === 'error') return { error: outcome.message }
         if (outcome.kind === 'already-registered') return { error: 'phoneTaken' }
@@ -473,24 +474,9 @@ export function useSessionStore(): SessionStore {
         userRef.current = outcome.profile.user
         setData((prev) => ({ ...prev, user: outcome.profile.user, lang: outcome.profile.lang }))
 
-        // The pickup is chosen from the list an admin maintains, so it is
-        // recorded on the profile rather than filed as a request for a new place.
-        // An unknown name is refused instead of quietly creating one: the rider
-        // would get an account whose pickup nothing else in the app recognises.
-        const wanted = input.pickupLocation.trim()
-        const chosen = data.places.find(
-          (p) => p.active && p.name.trim().toLowerCase() === wanted.toLowerCase()
-        )
-        if (chosen) {
-          try {
-            await repo.updateOwnProfile(outcome.profile.user.id, {
-              pickupLocation: chosen.name
-            })
-          } catch {
-            // Not fatal. The account exists and the rider can set their pickup
-            // from the profile screen afterwards.
-          }
-        }
+        // The pickup went out with the signup and the database stored it, so
+        // there is nothing to write here. An empty one is the bootstrap account
+        // and it sets its pickup from the profile screen.
         await promoteDeviceLang(outcome.profile.user.id, outcome.profile.lang)
         await loadAll()
         return { ok: true, role: outcome.profile.user.role }
@@ -499,7 +485,7 @@ export function useSessionStore(): SessionStore {
         return { error: message }
       }
     },
-    [configured, data.lang, data.places, loadAll, promoteDeviceLang]
+    [configured, data.lang, loadAll, promoteDeviceLang]
   )
 
   const signIn = useCallback<SessionStore['signIn']>(

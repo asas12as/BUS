@@ -20,6 +20,13 @@
 --    It exposes names the same riders already see once signed in, and nothing
 --    else -- archived rows stay hidden, and no column here identifies a person.
 --
+--    A rider cannot pick a bus on an install that has none published, and buses
+--    can only be published by an admin, so somebody has to be the first. The
+--    first account ever registered becomes an admin, and the pickup is only
+--    optional while the bus list is empty. Both exceptions close as soon as the
+--    install is in use; see the trigger for the full reasoning and, for the
+--    admin one, for what it costs.
+--
 -- 2. Three words in a name, and a number that could actually be dialled.
 --
 --    `src/lib/phone.ts` and `src/lib/validate.ts` have enforced these since the
@@ -78,10 +85,11 @@ create policy places_select_active_anon on public.places
 -- Stripping per part rather than per name is what makes that come out right.
 -- Trimming only the ends of the whole string leaves the bare dash counted.
 --
--- \p{L} and \p{N} rather than the POSIX [[:alnum:]], because POSIX classes here
--- are resolved against the database collation and a C-collation database would
--- quietly stop matching Arabic names. The Unicode properties are what the
--- TypeScript equivalent uses.
+-- [:alpha:] and [:digit:] rather than the \p{L} / \p{N} that the TypeScript uses,
+-- because this server rejects \p{...} and \pL outright -- "invalid escape \".
+-- Measured against this database rather than assumed: [:alpha:] and [:alnum:]
+-- both match Arabic, which was the reason for avoiding them in the first place.
+-- Re-checked if the project moves to one with a different collation.
 create or replace function public.count_name_words(p_name text)
 returns integer
 language sql
@@ -90,7 +98,7 @@ set search_path = pg_catalog
 as $$
   select count(*)::integer
   from unnest(regexp_split_to_array(btrim(coalesce(p_name, '')), '[[:space:]]+')) as part
-  where regexp_replace(part, '[^\p{L}\p{N}]', '', 'g') <> '';
+  where regexp_replace(part, '[^[:alpha:][:digit:]]', '', 'g') <> '';
 $$;
 
 comment on function public.count_name_words(text) is
@@ -146,6 +154,22 @@ comment on function public.is_valid_phone(text) is
 -- Refused rather than quietly corrected. A name trimmed to two words is not the
 -- name the rider typed, and storing it would leave the interface showing three
 -- words and the bus staff seeing two.
+--
+-- The pickup is resolved here rather than written afterwards by the client.
+-- That makes the signup one transaction -- no account can exist with the form
+-- half-satisfied -- and it puts the "pickup is required" rule where it cannot be
+-- skipped by calling the REST endpoint directly.
+--
+-- Two exceptions, and they are different ones:
+--
+--   The first account ever becomes the admin. Without it the app cannot install
+--   itself: no admin means no published bus, and no published bus means no
+--   pickup to require.
+--
+--   The pickup is only skippable while no bus has ever been published, because
+--   after that there is always something to choose.
+--
+-- The reasoning behind the first is written out at the assignment below.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -153,8 +177,12 @@ security definer
 set search_path = public
 as $$
 declare
-  v_name  text := btrim(coalesce(new.raw_user_meta_data ->> 'name', ''));
-  v_phone text := public.normalise_phone(new.raw_user_meta_data ->> 'phone');
+  v_name   text := btrim(coalesce(new.raw_user_meta_data ->> 'name', ''));
+  v_phone  text := public.normalise_phone(new.raw_user_meta_data ->> 'phone');
+  v_pickup text := btrim(coalesce(new.raw_user_meta_data ->> 'pickup', ''));
+  v_place  public.places%rowtype;
+  v_first  boolean;
+  v_nothing_to_pick boolean;
 begin
   if not public.is_valid_name(v_name) then
     raise exception 'name must be at least 3 words'
@@ -166,13 +194,54 @@ begin
       using errcode = '22023';
   end if;
 
-  insert into public.profiles (id, name, lang, phone, email)
+  -- Two separate conditions, because they answer two separate questions.
+  --
+  -- v_first: no rider has ever registered, so this is the first account. It
+  -- becomes the admin -- otherwise nobody is, and with no admin there is no way
+  -- to publish a bus, add a rider or change a role. This is the bootstrap.
+  --
+  -- The cost is stated plainly: on an install that has been wiped of its riders,
+  -- the next person to register becomes an admin. Somebody with the ability to
+  -- delete every profile has already destroyed the data, and an admin is the
+  -- least of what that costs. The alternative -- promoting the first admin by
+  -- hand over the SQL editor -- leaves the app unable to install itself and is
+  -- the reason this would be rediscovered as a bug later.
+  v_first := not exists (select 1 from public.profiles);
+  --
+  -- v_nothing_to_pick: there are no buses at all, so a required pickup would be
+  -- unanswerable. Only ever true on an install that has never published a bus.
+  -- With buses present the rider picks one, bootstrap or not.
+  v_nothing_to_pick := not exists (select 1 from public.places);
+
+  if v_pickup <> '' then
+    select * into v_place
+      from public.places
+     where name = v_pickup and archived = false;
+
+    if not found then
+      raise exception 'pickup must be one of the listed buses'
+        using errcode = '22023';
+    end if;
+  elsif not v_nothing_to_pick then
+    raise exception 'pickup bus is required'
+      using errcode = '22023';
+  end if;
+
+  insert into public.profiles (
+    id, name, lang, phone, email, role, pickup_place_id, pickup_name
+  )
   values (
     new.id,
     v_name,
     coalesce(new.raw_user_meta_data ->> 'lang', 'en'),
     coalesce(v_phone, ''),
-    nullif(btrim(new.raw_user_meta_data ->> 'email'), '')
+    nullif(btrim(new.raw_user_meta_data ->> 'email'), ''),
+    -- profiles_guard_role is a BEFORE UPDATE trigger, so this insert is not the
+    -- thing it was written to stop; that one is there to stop a rider promoting
+    -- themselves once the install is in use.
+    case when v_first then 'admin' else 'user' end,
+    v_place.id,
+    nullif(v_pickup, '')
   )
   on conflict (id) do nothing;
   return new;
