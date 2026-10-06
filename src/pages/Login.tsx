@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/useApp'
-import { LockIcon, MailIcon } from '../components/Icons'
+import { LockIcon, PhoneIcon } from '../components/Icons'
 import { AuthShell } from './SignUp'
 
 export function Login() {
   const { t, show, login } = useApp()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -15,11 +15,16 @@ export function Login() {
   // Awaited: the sign-in is a round trip to the auth server, and the redirect
   // needs the answer. isAdmin is read after the fact because role comes from the
   // profile row the sign-in loads, not from anything known before it.
+  //
+  // The number is the account. Email is only contact detail and is often not
+  // there at all, so asking for it would lock out exactly the riders who
+  // registered without one. Whatever form the number is typed in is normalised
+  // before it is sent, so `0100 123 4567` and `+20 100 123 4567` both work.
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPending(true)
     setError(null)
-    const result = await login(email, password)
+    const result = await login(phone, password)
     // The role comes back with the result rather than from `isAdmin`, which is
     // still false here: context has not re-rendered yet, so the pre-sign-in
     // value is read.
@@ -34,17 +39,20 @@ export function Login() {
       <form className="form" onSubmit={submit} noValidate>
         <label className="field">
           <span className="field__label">
-            <MailIcon className="field__icon" />
-            {t('email')}
+            <PhoneIcon className="field__icon" />
+            {t('phoneNumber')}
           </span>
           <input
             className="field__input"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t('emailPlaceholder')}
-            inputMode="email"
-            autoComplete="email"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder={t('phonePlaceholder')}
+            inputMode="tel"
+            autoComplete="tel"
             dir="ltr"
+            autoFocus
+            required
           />
         </label>
 
@@ -60,6 +68,7 @@ export function Login() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t('passwordPlaceholder')}
             autoComplete="current-password"
+            required
           />
         </label>
 

@@ -24,6 +24,13 @@ export interface ProfileRow {
   avatar: string | null
   pickup_place_id: string | null
   pickup_name: string | null
+  /**
+   * The rider's own address, when they gave one at signup.
+   *
+   * Distinct from the account's GoTrue address, which is derived from the phone
+   * and is never shown. This is the one a human typed, and it is optional.
+   */
+  email?: string | null
   created_at: string
   updated_at: string
 }

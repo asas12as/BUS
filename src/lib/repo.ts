@@ -16,6 +16,7 @@
  */
 import type { Lang, PickupPlace, PlaceRequest, SubStatus, User, WeekSubscription } from './types'
 import { normalizeDays } from './date'
+import { normalizePhone } from './phone'
 import { supabase, describeError, SupabaseNotConfigured } from './supabase'
 import {
   asLang,
@@ -108,7 +109,12 @@ export async function fetchOwnProfile(userId: string, email?: string, phone?: st
   if (error) fail(error)
   if (!data) return null
   const row = data as ProfileRow
-  return { user: toUser({ ...row, email: email ?? null }, phone), lang: asLang(row.lang) }
+  // The stored address wins over the session's. The session carries the account's
+  // GoTrue address, which is derived from the phone number and reads as
+  // `p201001234567@phone.invalid`; showing that to a rider would be worse than
+  // showing nothing. The session value is only a fallback for a profile row
+  // written before the column existed.
+  return { user: toUser({ ...row, email: row.email ?? email ?? null }, phone), lang: asLang(row.lang) }
 }
 
 /**
@@ -149,7 +155,15 @@ export async function updateOwnProfile(
 ): Promise<void> {
   const body = profilePatch(patch)
   if (body.name !== undefined) body.name = String(body.name).trim()
-  if (body.phone !== undefined) body.phone = String(body.phone).trim()
+  if (body.phone !== undefined) {
+    // Normalised, not just trimmed. The unique index is built on the normalised
+    // value, so a raw spelling would still be caught as a duplicate, but the
+    // column would then hold two different strings for one number and the rider
+    // would see their own number change shape depending on where they edited it.
+    const normalized = normalizePhone(String(body.phone))
+    if (!normalized) fail(new Error('That phone number could not be read.'))
+    body.phone = normalized
+  }
 
   if (patch.pickupLocation !== undefined) {
     const wanted = (patch.pickupLocation ?? '').trim()
@@ -553,4 +567,27 @@ export async function recordScan(weekStart: string, number: number): Promise<Sca
 export async function saveLanguage(userId: string, lang: Lang): Promise<void> {
   const { error } = await supabase().from('profiles').update({ lang }).eq('id', userId)
   if (error) fail(error)
+}
+
+/**
+ * Whether a phone number already belongs to an account.
+ *
+ * Lets the signup form say "this number is registered" before it tries, instead
+ * of after. It is a convenience, not the guarantee: this runs before the write,
+ * so two simultaneous signups can both be told no, and both succeed, and only
+ * one survives. What actually prevents the second is the unique index on the
+ * normalised phone, which the database applies at the moment of the insert.
+ *
+ * Returns false rather than throwing when it cannot be reached. The signup form
+ * then proceeds and lets the real attempt produce the real answer, which is
+ * better than refusing to let somebody register because a check was flaky.
+ */
+export async function isPhoneRegistered(phone: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase().rpc('phone_in_use', { p_phone: phone })
+    if (error) return false
+    return data === true
+  } catch {
+    return false
+  }
 }

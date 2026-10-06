@@ -35,6 +35,14 @@ export function SignUp() {
   const [notice, setNotice] = useState<TranslationKey | null>(null)
   const [pending, setPending] = useState(false)
 
+  // The buses an admin has published. Archived ones are already filtered out by
+  // the context, so whatever is here is a place a rider may actually be picked up
+  // from. When the list is empty the field cannot be filled in at all, which is
+  // why the form says so outright instead of offering a free-text box the server
+  // would reject.
+  const options = places.filter((place) => place.active)
+  const noPlaces = options.length === 0
+
   /**
    * Awaited, and the outcome has two shapes.
    *
@@ -77,7 +85,7 @@ export function SignUp() {
             onChange={(e) => setName(e.target.value)}
             placeholder={t('namePlaceholder')}
             autoComplete="name"
-            minLength={3}
+            required
           />
         </label>
 
@@ -94,46 +102,51 @@ export function SignUp() {
             inputMode="tel"
             autoComplete="tel"
             dir="ltr"
+            required
           />
         </label>
 
         <label className="field">
           <span className="field__label">
             <MailIcon className="field__icon" />
-            {t('email')}
+            {t('emailOptional')}
           </span>
           <input
             className="field__input"
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={t('emailPlaceholder')}
+            placeholder={t('emailOptionalPlaceholder')}
             inputMode="email"
             autoComplete="email"
             dir="ltr"
           />
         </label>
 
-        {/* The same choice the subscription sheet offers: pick a known place,
-            or write your own and let the admin add it. */}
+        {/* Chosen from the buses an admin maintains, not typed in.
+            Required, because the pickup decides who to expect on the bus. With no
+            buses published there is nothing to offer, so the field is disabled
+            and the reason is stated rather than leaving a silent empty box. */}
         <label className="field">
           <span className="field__label">
             <MapPinIcon className="field__icon" />
-            {t('pickupLocation')}
+            {t('pickupBus')}
           </span>
-          <input
+          <select
             className="field__input"
-            list="nvu-bus-places"
             value={pickupLocation}
             onChange={(e) => setPickupLocation(e.target.value)}
-            placeholder={t('pickupLocationPlaceholder')}
-            autoComplete="off"
-          />
+            disabled={noPlaces}
+            required
+          >
+            <option value="">{noPlaces ? t('noBusesYet') : t('pickupBusChoose')}</option>
+            {options.map((place) => (
+              <option key={place.id} value={place.name}>
+                {place.name}
+              </option>
+            ))}
+          </select>
         </label>
-        <datalist id="nvu-bus-places">
-          {places.map((place) => (
-            <option key={place.id} value={place.name} />
-          ))}
-        </datalist>
 
         <label className="field">
           <span className="field__label">
@@ -147,6 +160,7 @@ export function SignUp() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t('passwordPlaceholder')}
             autoComplete="new-password"
+            required
           />
         </label>
 

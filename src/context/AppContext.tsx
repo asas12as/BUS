@@ -218,12 +218,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Same checks as before the cutover. They live in the client because they
       // are about giving immediate feedback on what was typed; the server
       // re-checks the things that matter for integrity.
-      if (!input.name.trim() || !input.phone.trim() || !input.email.trim() || !input.password) {
+      //
+      // Email is optional: the number is the identity, and an account with no
+      // address is a complete account. It is still checked when typed, so a
+      // mistyped one is caught rather than silently stored as unusable contact.
+      if (!input.name.trim() || !input.phone.trim() || !input.password) {
         return { error: 'requiredFields', local: true }
       }
       if (!input.pickupLocation.trim()) return { error: 'selectPlace', local: true }
       if (!isValidName(input.name)) return { error: 'nameTooShort', local: true }
-      if (!isValidEmail(input.email)) return { error: 'invalidEmail', local: true }
+      if (input.email.trim() && !isValidEmail(input.email)) {
+        return { error: 'invalidEmail', local: true }
+      }
       if (!isValidPhone(input.phone)) return { error: 'invalidPhone', local: true }
       if (!isValidPassword(input.password)) return { error: 'passwordTooShort', local: true }
       return store.signUp(input)
@@ -232,10 +238,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const login = useCallback<AppContextValue['login']>(
-    async (email, password) => {
-      if (!email.trim() || !password) return { error: 'requiredFields', local: true }
-      if (!isValidEmail(email)) return { error: 'invalidEmail', local: true }
-      return store.signIn(email, password)
+    async (phone, password) => {
+      if (!phone.trim() || !password) return { error: 'requiredFields', local: true }
+      if (!isValidPhone(phone)) return { error: 'invalidPhone', local: true }
+      return store.signIn(phone, password)
     },
     [store]
   )
@@ -245,16 +251,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /**
    * Interface language.
    *
-   * A no-op when the write would be refused: the language lives on the profile
-   * row, so switching it offline has nowhere to go. Returning without switching
-   * is better than switching on screen and reverting, which would flicker the
-   * whole interface for a change that did not happen.
+   * Deliberately not gated on being online. When signed in, the language is a
+   * column on the profile row, so switching it offline has nowhere to go and the
+   * store declines -- returning without switching is better than switching on
+   * screen and reverting, which would flicker the whole interface for a change
+   * that did not happen.
+   *
+   * When signed out there is no profile to write to, and refusing the switch
+   * there is what left the button on the login and signup screens dead: a rider
+   * who could not read the form had no way to change the language and no way to
+   * register either. The store owns that distinction.
    */
   const online = store.sync.online
   const toggleLang = useCallback(() => {
-    if (!online) return
     void store.toggleLang()
-  }, [store, online])
+  }, [store])
 
   const updateProfile = useCallback<AppContextValue['updateProfile']>(
     async (patch) => {
