@@ -88,15 +88,37 @@ admin token cannot mint another one.
 
 ## Deploying to GitHub Pages
 
+Work lands on `develop` and is published by merging into `main`:
+
+```
+git checkout develop
+# edit, then npm run verify
+git commit && git push origin develop
+# open a PR against main, merge when it works
+```
+
+`.github/workflows/deploy.yml` fires on `main` only, so nothing on `develop`
+reaches the live URL until it is merged. That is worth keeping in mind when
+pushing: the trigger is the branch, not the workflow.
+
 Every push to `main` publishes. The build step needs two repository **variables**
-(set under Settings → Secrets and codespaces → Actions), because the runner has
-no `.env.local`:
+(set under Settings → Secrets and codespaces → Actions → **Variables**), because
+the runner has no `.env.local`:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
+These are variables rather than secrets on purpose. Both are public by design and
+Vite inlines them into the bundle, so hiding them buys nothing and only makes the
+build harder to inspect.
+
 The admin key and database password are deliberately not passed to the workflow.
 Nothing in `src/` needs them.
+
+Note that local development is not isolated from production. `.env.local` points
+at the same Supabase project the live site uses, so signing up, subscribing or
+scanning locally writes real rows and consumes real weekly numbers. Test against
+a throwaway account and clean up, or stand up a second project for it.
 
 ## What offline means here
 
