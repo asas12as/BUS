@@ -128,8 +128,7 @@ export function SignUp() {
 
         {/* Chosen from the buses an admin maintains, not typed in.
             Required once there are any, because the pickup decides who to expect
-            on the bus. With none published the field is disabled and the first
-            account becomes the admin who adds them. */}
+            on the bus. */}
         <label className="field">
           <span className="field__label">
             <MapPinIcon className="field__icon" />
@@ -142,7 +141,7 @@ export function SignUp() {
             disabled={noPlaces}
             required={!noPlaces}
           >
-            <option value="">{noPlaces ? t('firstAccountBecomesAdmin') : t('pickupBusChoose')}</option>
+            <option value="">{t('pickupBusChoose')}</option>
             {options.map((place) => (
               <option key={place.id} value={place.name}>
                 {place.name}

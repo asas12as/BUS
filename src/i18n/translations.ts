@@ -142,9 +142,6 @@ export const en = {
   // whether picking a bus here is binding for every ride.
   pickupBus: 'Pick up BUS',
   pickupBusChoose: 'Choose the bus you get on',
-  // Only shown on an install with no buses published, where the person at the
-  // form is about to become the one who publishes them.
-  firstAccountBecomesAdmin: 'None listed yet — the first account manages them',
   yourDays: 'Days you ride',
   daysPerWeek: 'Days per week',
   weeklyPrice: 'Weekly price',
@@ -398,7 +395,6 @@ export const ar: Record<TranslationKey, string> = {
   pickupLocationPlaceholder: 'اكتب مكان التقاطك',
   pickupBus: 'اركب من',
   pickupBusChoose: 'اختر الباص الذي تركب منه',
-  firstAccountBecomesAdmin: 'لا يوجد باصات — أول حساب يديرها',
   yourDays: 'أيام ركوبك',
   daysPerWeek: 'عدد الأيام',
   weeklyPrice: 'سعر الأسبوع',
