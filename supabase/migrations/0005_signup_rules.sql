@@ -201,14 +201,25 @@ declare
   v_place  public.places%rowtype;
   v_first  boolean;
 begin
-  if not public.is_valid_name(v_name) then
-    raise exception 'name must be at least 3 words'
-      using errcode = '22023';
-  end if;
+  v_first := not exists (select 1 from public.profiles);
 
-  if not public.is_valid_phone(v_phone) then
-    raise exception 'phone number is not valid'
-      using errcode = '22023';
+  if v_first and not exists (select 1 from public.places) then
+    if public.count_name_words(v_name) < 1 then
+      raise exception 'name is required' using errcode = '22023';
+    end if;
+    if v_phone is not null and not public.is_valid_phone(v_phone) then
+      raise exception 'phone number is not valid' using errcode = '22023';
+    end if;
+  else
+    if not public.is_valid_name(v_name) then
+      raise exception 'name must be at least 3 words'
+        using errcode = '22023';
+    end if;
+    if not public.is_valid_phone(v_phone) then
+      raise exception 'phone number is not valid'
+        using errcode = '22023';
+    end if;
+  end if;
   end if;
 
   -- Two separate conditions, because they answer two separate questions.
