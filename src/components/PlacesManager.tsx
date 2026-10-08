@@ -50,7 +50,6 @@ export function PlacesManager() {
     archivePlace,
     restorePlace,
     deletePlace,
-    setPlaceBus
   } = useApp()
   const [busName, setBusName] = useState('')
   const [placeName, setPlaceName] = useState('')
