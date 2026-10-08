@@ -390,8 +390,8 @@ export async function fetchPlaces(): Promise<PickupPlace[]> {
 }
 
 /** Adds a place or a bus. The kind is fixed at creation and never changes. */
-export async function createPlace(name: string, kind: 'place' | 'bus'): Promise<void> {
-  const { error } = await supabase().from('places').insert({ name: name.trim(), kind })
+export async function createPlace(name: string, kind: 'place' | 'bus', busId?: string | null): Promise<void> {
+  const { error } = await supabase().from('places').insert({ name: name.trim(), kind, bus_id: busId ?? null })
   if (error) fail(error)
 }
 
@@ -408,6 +408,11 @@ export async function archivePlaceOnServer(id: string): Promise<void> {
 
 export async function restorePlaceOnServer(id: string): Promise<void> {
   const { error } = await supabase().from('places').update({ archived: false }).eq('id', id)
+  if (error) fail(error)
+}
+
+export async function setPlaceBus(id: string, busId: string | null): Promise<void> {
+  const { error } = await supabase().from('places').update({ bus_id: busId }).eq('id', id)
   if (error) fail(error)
 }
 

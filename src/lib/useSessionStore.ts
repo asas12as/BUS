@@ -121,11 +121,13 @@ export interface SessionStore {
   cancelSubscription: (userId: string, weekStart: string) => Promise<RepoResult>
   confirmWeek: (userId: string, weekStart: string) => Promise<RepoResult>
 
-  createPlace: (name: string, kind: 'place' | 'bus') => Promise<RepoResult>
+  createPlace: (name: string, kind: 'place' | 'bus', busId?: string | null) => Promise<RepoResult>
   renamePlace: (id: string, name: string) => Promise<RepoResult>
   archivePlace: (id: string) => Promise<RepoResult>
   restorePlace: (id: string) => Promise<RepoResult>
   deletePlace: (id: string) => Promise<RepoResult>
+
+  setPlaceBus: (id: string, busId: string | null) => Promise<RepoResult>
 
   updateProfile: (
     patch: Partial<Pick<User, 'name' | 'avatar' | 'phone' | 'pickupLocation'>>
@@ -612,9 +614,9 @@ export function useSessionStore(): SessionStore {
   /* --------------------------------- places ------------------------------- */
 
   const createPlace = useCallback<SessionStore['createPlace']>(
-    async (name, kind) => {
+    async (name, kind, busId) => {
       if (!name.trim()) return { error: 'placeNameRequired', local: true }
-      return mutate(() => repo.createPlace(name, kind))
+      return mutate(() => repo.createPlace(name, kind, busId))
     },
     [mutate]
   )
@@ -639,6 +641,11 @@ export function useSessionStore(): SessionStore {
 
   const deletePlace = useCallback<SessionStore['deletePlace']>(
     async (id) => mutate(() => repo.deletePlaceOnServer(id)),
+    [mutate]
+  )
+
+  const setPlaceBus = useCallback<SessionStore['setPlaceBus']>(
+    async (id, busId) => mutate(() => repo.setPlaceBus(id, busId)),
     [mutate]
   )
 
@@ -802,6 +809,7 @@ export function useSessionStore(): SessionStore {
       archivePlace,
       restorePlace,
       deletePlace,
+      setPlaceBus,
       updateProfile,
       changePassword,
       setUserRole,
@@ -835,6 +843,7 @@ export function useSessionStore(): SessionStore {
       archivePlace,
       restorePlace,
       deletePlace,
+      setPlaceBus,
       updateProfile,
       changePassword,
       setUserRole,

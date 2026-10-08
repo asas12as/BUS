@@ -439,6 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       archivePlace: store.archivePlace,
       restorePlace: store.restorePlace,
       deletePlace: store.deletePlace,
+      setPlaceBus: store.setPlaceBus,
       updateProfile,
       changePassword,
       setUserRole: store.setUserRole,

@@ -85,6 +85,7 @@ export interface PickupPlace {
   kind: PlaceKind
   active: boolean
   createdAt: string
+  busId?: string | null
 }
 
 /**

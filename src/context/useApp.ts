@@ -95,11 +95,12 @@ export interface AppContextValue {
 
   /* -------------------------------- places ------------------------------ */
 
-  addPlace: (name: string, kind: PlaceKind) => Promise<ActionError>
+  addPlace: (name: string, kind: PlaceKind, busId?: string | null) => Promise<ActionError>
   renamePlace: (id: string, name: string) => Promise<ActionError>
   archivePlace: (id: string) => Promise<ActionError>
   restorePlace: (id: string) => Promise<ActionError>
   deletePlace: (id: string) => Promise<ActionError>
+  setPlaceBus: (id: string, busId: string | null) => Promise<ActionError>
 
   /* -------------------------------- profile ------------------------------ */
 

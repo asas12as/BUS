@@ -351,7 +351,13 @@ export function SubscribeSheetBody({ requestedWeek, onClose }: Props) {
 
             {mode === 'list' ? (
               <ul className="placelist">
-                {places.map((place) => (
+                {places
+                  .filter((p) => {
+                    const busId = currentUser?.pickupBusId
+                    if (busId) return p.busId === busId
+                    return true
+                  })
+                  .map((place) => (
                   <li key={place.id}>
                     <button
                       type="button"

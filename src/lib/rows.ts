@@ -64,6 +64,7 @@ export interface PlaceRow {
   kind: string
   archived: boolean
   created_at: string
+  bus_id?: string | null
 }
 
 export interface WeekSubscriptionRow {

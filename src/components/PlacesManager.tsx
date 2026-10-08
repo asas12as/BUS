@@ -53,6 +53,7 @@ export function PlacesManager() {
   } = useApp()
   const [busName, setBusName] = useState('')
   const [placeName, setPlaceName] = useState('')
+  const [placeBus, setPlaceBusSel] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
@@ -68,9 +69,10 @@ export function PlacesManager() {
   }
 
   const submitPlace = async () => {
-    const result = await addPlace(placeName, 'place')
+    const result = await addPlace(placeName, 'place', placeBus || null)
     if (result.ok) {
       setPlaceName('')
+      setPlaceBusSel('')
       setError('')
     } else {
       setError(result.error ?? '')
@@ -197,7 +199,7 @@ export function PlacesManager() {
           {t('managePlaces')}
         </h2>
 
-        <div className="inlineadd">
+        <div className="inlineadd" style={{ flexWrap: 'wrap' }}>
           <input
             className="field__input"
             value={placeName}
@@ -207,6 +209,12 @@ export function PlacesManager() {
             }}
             placeholder={t('placeName')}
           />
+          <select className="field__input" value={placeBus} onChange={(e) => setPlaceBusSel(e.target.value)} style={{ maxWidth: 160 }}>
+            <option value="">اختر الباص</option>
+            {allBuses.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
           <button type="button" className="btn btn--primary" onClick={() => void submitPlace()}>
             {t('addPlace')}
           </button>

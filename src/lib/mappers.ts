@@ -112,7 +112,8 @@ export function toPlace(row: PlaceRow): PickupPlace {
     name: row.name,
     kind: asPlaceKind(row.kind),
     active: !row.archived,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    busId: row.bus_id ?? null
   }
 }
 
