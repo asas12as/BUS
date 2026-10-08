@@ -50,6 +50,7 @@ export function PlacesManager() {
     archivePlace,
     restorePlace,
     deletePlace,
+    setPlaceBus
   } = useApp()
   const [busName, setBusName] = useState('')
   const [placeName, setPlaceName] = useState('')
@@ -255,6 +256,17 @@ export function PlacesManager() {
                   <>
                     <span className={place.active ? '' : 'is-archived'}>{place.name}</span>
                     <span className="rowactions">
+                      <select
+                        className="field__input"
+                        value={place.busId ?? ''}
+                        onChange={(e) => void setPlaceBus(place.id, e.target.value || null)}
+                        style={{ maxWidth: 120, marginRight: 4 }}
+                      >
+                        <option value="">Unassigned</option>
+                        {allBuses.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
                       <button
                         type="button"
                         className="btn btn--ghost btn--sm"
