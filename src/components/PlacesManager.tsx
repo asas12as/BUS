@@ -49,7 +49,8 @@ export function PlacesManager() {
     renamePlace,
     archivePlace,
     restorePlace,
-    deletePlace
+    deletePlace,
+    setPlaceBus
   } = useApp()
   const [busName, setBusName] = useState('')
   const [placeName, setPlaceName] = useState('')
