@@ -14,19 +14,19 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { DayEntry, PickupPlace, PlaceRequest, SubStatus, User, WeekSubscription } from '../lib/types'
+import type { DayEntry, PickupPlace, PlaceKind, SubStatus, User, WeekSubscription } from '../lib/types'
 import { useSessionStore } from '../lib/useSessionStore'
 import { AppContext, type AppContextValue } from './useApp'
 import { blockedByCurrentWeek, isValidDayChoice, isWindowOpen, minutesRemaining, minutesUntilOpen, targetableWeekKey, weekKey } from '../lib/date'
 import { isValidEmail, isValidName, isValidPassword, isValidPhone } from '../lib/validate'
 import { ar, en, renderMessage, type TranslationKey } from '../i18n/translations'
 
-function openRequests(requests: PlaceRequest[]): PlaceRequest[] {
-  return requests.filter((r) => r.status === 'open')
+function byKind(places: PickupPlace[], kind: PlaceKind): PickupPlace[] {
+  return places.filter((p) => p.kind === kind)
 }
 
-function activePlaces(places: PickupPlace[]): PickupPlace[] {
-  return places.filter((p) => p.active)
+function activePlaces(places: PickupPlace[], kind: PlaceKind): PickupPlace[] {
+  return places.filter((p) => p.kind === kind && p.active)
 }
 
 /**
@@ -230,8 +230,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // the only account that can add the first one -- see the bootstrap note in
       // supabase/migrations/0005_signup_rules.sql. The server draws the line in
       // the same place and refuses a signup with no pickup once buses exist.
-      const buses = store.data.places.filter((p) => p.active)
-      if (buses.length > 0 && !input.pickupLocation.trim()) {
+      const buses = store.data.places.filter((p) => p.kind === 'bus' && p.active)
+      if (buses.length > 0 && !input.pickupBus.trim()) {
         return { error: 'selectPlace', local: true }
       }
       if (!isValidName(input.name)) return { error: 'nameTooShort', local: true }
@@ -410,8 +410,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signUp,
       login,
       logout,
-      places: activePlaces(store.data.places),
-      allPlaces: store.data.places,
+      places: activePlaces(store.data.places, 'place'),
+      allPlaces: byKind(store.data.places, 'place'),
+      buses: activePlaces(store.data.places, 'bus'),
+      allBuses: byKind(store.data.places, 'bus'),
       weekSubFor,
       weekStatusFor,
       overallStatusFor,
@@ -437,11 +439,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       archivePlace: store.archivePlace,
       restorePlace: store.restorePlace,
       deletePlace: store.deletePlace,
-      placeRequests: openRequests(store.data.placeRequests),
-      approveRequest: store.approveRequest,
-      rejectRequest: store.rejectRequest,
-      deletePlaceRequest: store.deleteRequest,
-      requestPlace: store.requestPlace,
       updateProfile,
       changePassword,
       setUserRole: store.setUserRole,

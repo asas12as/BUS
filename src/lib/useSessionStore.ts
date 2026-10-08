@@ -14,7 +14,7 @@
  *   from being bypassed.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DayEntry, Lang, PickupPlace, PlaceRequest, SubStatus, User, WeekSubscription } from './types'
+import type { DayEntry, Lang, PickupPlace, SubStatus, User, WeekSubscription } from './types'
 import { isValidDayChoice } from './date'
 import { cacheAvailable, readCache, writeCache, clearCache, readDeviceLang, writeDeviceLang } from './cache'
 import * as repo from './repo'
@@ -72,7 +72,6 @@ interface ServerState {
   user: User | null
   weeks: Array<{ userId: string; sub: WeekSubscription }>
   places: PickupPlace[]
-  placeRequests: PlaceRequest[]
   lang: Lang
 }
 
@@ -80,7 +79,6 @@ const EMPTY: ServerState = {
   user: null,
   weeks: [],
   places: [],
-  placeRequests: [],
   lang: 'en'
 }
 
@@ -112,7 +110,7 @@ export interface SessionStore {
     phone: string
     email: string
     password: string
-    pickupLocation: string
+    pickupBus: string
   }) => Promise<RepoResult>
   signIn: (phone: string, password: string) => Promise<RepoResult>
   signOut: () => Promise<void>
@@ -123,16 +121,11 @@ export interface SessionStore {
   cancelSubscription: (userId: string, weekStart: string) => Promise<RepoResult>
   confirmWeek: (userId: string, weekStart: string) => Promise<RepoResult>
 
-  createPlace: (name: string) => Promise<RepoResult>
+  createPlace: (name: string, kind: 'place' | 'bus') => Promise<RepoResult>
   renamePlace: (id: string, name: string) => Promise<RepoResult>
   archivePlace: (id: string) => Promise<RepoResult>
   restorePlace: (id: string) => Promise<RepoResult>
   deletePlace: (id: string) => Promise<RepoResult>
-
-  requestPlace: (name: string) => Promise<RepoResult>
-  approveRequest: (id: string) => Promise<RepoResult>
-  rejectRequest: (id: string) => Promise<RepoResult>
-  deleteRequest: (id: string) => Promise<RepoResult>
 
   updateProfile: (
     patch: Partial<Pick<User, 'name' | 'avatar' | 'phone' | 'pickupLocation'>>
@@ -249,7 +242,6 @@ export function useSessionStore(): SessionStore {
       user: state.user,
       weeks: state.weeks,
       places: state.places,
-      placeRequests: state.placeRequests,
       lang: state.lang
     })
   }, [])
@@ -272,17 +264,15 @@ export function useSessionStore(): SessionStore {
     }
     setSync((s) => ({ ...s, loading: true, error: null }))
     try {
-      const [me, weeks, places, placeRequests] = await Promise.all([
+      const [me, weeks, places] = await Promise.all([
         repo.fetchOwnProfile(userId, userRef.current?.email, userRef.current?.phone),
         repo.fetchWeekSubscriptions(),
-        repo.fetchPlaces(),
-        repo.fetchPlaceRequests()
+        repo.fetchPlaces()
       ])
       const next: ServerState = {
         user: me?.user ?? userRef.current,
         weeks,
         places,
-        placeRequests,
         // Language comes from the profile row, which is per account. Falling
         // back to what is already on screen keeps a read failure from flipping
         // the interface back to English.
@@ -302,7 +292,6 @@ export function useSessionStore(): SessionStore {
           user: cached.user,
           weeks: cached.weeks,
           places: cached.places,
-          placeRequests: cached.placeRequests,
           lang: cached.lang
         })
       }
@@ -464,7 +453,7 @@ export function useSessionStore(): SessionStore {
           name: input.name,
           lang: data.lang,
           phone: input.phone,
-          pickup: input.pickupLocation
+          pickup: input.pickupBus
         })
         if (outcome.kind === 'error') return { error: outcome.message }
         if (outcome.kind === 'already-registered') return { error: 'phoneTaken' }
@@ -474,9 +463,9 @@ export function useSessionStore(): SessionStore {
         userRef.current = outcome.profile.user
         setData((prev) => ({ ...prev, user: outcome.profile.user, lang: outcome.profile.lang }))
 
-        // The pickup went out with the signup and the database stored it, so
-        // there is nothing to write here. An empty one is the bootstrap account
-        // and it sets its pickup from the profile screen.
+        // The bus went out with the signup and the database stored it, so there is
+        // nothing to write here. An empty one means the install had no bus to
+        // choose yet, which is only true of the very first account.
         await promoteDeviceLang(outcome.profile.user.id, outcome.profile.lang)
         await loadAll()
         return { ok: true, role: outcome.profile.user.role }
@@ -623,9 +612,9 @@ export function useSessionStore(): SessionStore {
   /* --------------------------------- places ------------------------------- */
 
   const createPlace = useCallback<SessionStore['createPlace']>(
-    async (name) => {
+    async (name, kind) => {
       if (!name.trim()) return { error: 'placeNameRequired', local: true }
-      return mutate(() => repo.createPlace(name))
+      return mutate(() => repo.createPlace(name, kind))
     },
     [mutate]
   )
@@ -650,31 +639,6 @@ export function useSessionStore(): SessionStore {
 
   const deletePlace = useCallback<SessionStore['deletePlace']>(
     async (id) => mutate(() => repo.deletePlaceOnServer(id)),
-    [mutate]
-  )
-
-  const requestPlace = useCallback<SessionStore['requestPlace']>(
-    async (name) => {
-      const user = userRef.current
-      if (!user) return { error: 'notSignedIn', local: true }
-      if (!name.trim()) return { error: 'placeNameRequired', local: true }
-      return mutate(() => repo.requestPlaceOnServer(user.id, name))
-    },
-    [mutate]
-  )
-
-  const approveRequest = useCallback<SessionStore['approveRequest']>(
-    async (id) => mutate(() => repo.approvePlaceRequestOnServer(id)),
-    [mutate]
-  )
-
-  const rejectRequest = useCallback<SessionStore['rejectRequest']>(
-    async (id) => mutate(() => repo.rejectPlaceRequestOnServer(id)),
-    [mutate]
-  )
-
-  const deleteRequest = useCallback<SessionStore['deleteRequest']>(
-    async (id) => mutate(() => repo.deletePlaceRequestOnServer(id)),
     [mutate]
   )
 
@@ -838,10 +802,6 @@ export function useSessionStore(): SessionStore {
       archivePlace,
       restorePlace,
       deletePlace,
-      requestPlace,
-      approveRequest,
-      rejectRequest,
-      deleteRequest,
       updateProfile,
       changePassword,
       setUserRole,
@@ -875,10 +835,6 @@ export function useSessionStore(): SessionStore {
       archivePlace,
       restorePlace,
       deletePlace,
-      requestPlace,
-      approveRequest,
-      rejectRequest,
-      deleteRequest,
       updateProfile,
       changePassword,
       setUserRole,

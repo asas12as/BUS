@@ -10,6 +10,8 @@ const base: ProfileInput = {
   avatar: null,
   pickup_place_id: null,
   pickup_name: null,
+  pickup_bus_id: null,
+  pickup_bus_name: null,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
   email: 'rider@example.com'

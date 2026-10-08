@@ -10,7 +10,7 @@
  * Keyed by user id, so signing in on a shared tablet does not show the previous
  * rider's subscriptions for a frame before the fetch lands.
  */
-import type { Lang, PickupPlace, PlaceRequest, User, WeekSubscription } from './types'
+import type { Lang, PickupPlace, User, WeekSubscription } from './types'
 
 /**
  * Separate from the old `projectbus.data.v1` blob on purpose.
@@ -60,7 +60,6 @@ export interface CacheSnapshot {
   user: User
   weeks: Array<{ userId: string; sub: WeekSubscription }>
   places: PickupPlace[]
-  placeRequests: PlaceRequest[]
   lang: Lang
   savedAt: string
 }

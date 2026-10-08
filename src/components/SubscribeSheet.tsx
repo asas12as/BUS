@@ -345,7 +345,7 @@ export function SubscribeSheetBody({ requestedWeek, onClose }: Props) {
                   setError('')
                 }}
               >
-                {t('requestNewPlace')}
+                {t('customPlace')}
               </button>
             </div>
 
@@ -371,7 +371,7 @@ export function SubscribeSheetBody({ requestedWeek, onClose }: Props) {
               </ul>
             ) : (
               <div className="sheet__custom">
-                <p className="sheet__help">{t('requestNewPlaceHelp')}</p>
+                <p className="sheet__help">{t('customPlaceHelp')}</p>
                 <input
                   className="field__input"
                   value={custom}

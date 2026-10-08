@@ -10,15 +10,7 @@
  * to reach the provider's value.
  */
 import { createContext, useContext } from 'react'
-import type {
-  DayEntry,
-  Lang,
-  PickupPlace,
-  PlaceRequest,
-  SubStatus,
-  User,
-  WeekSubscription
-} from '../lib/types'
+import type { DayEntry, Lang, PickupPlace, PlaceKind, SubStatus, User, WeekSubscription } from '../lib/types'
 import type { PlaceChoice, RepoResult, SyncState } from '../lib/useSessionStore'
 import type { ScanResolution } from '../lib/mappers'
 import type { TranslationKey } from '../i18n/translations'
@@ -34,7 +26,6 @@ export interface AppContextValue {
     user: User | null
     weeks: Array<{ userId: string; sub: WeekSubscription }>
     places: PickupPlace[]
-    placeRequests: PlaceRequest[]
     lang: Lang
   }
   sync: SyncState
@@ -59,7 +50,7 @@ export interface AppContextValue {
     phone: string
     email: string
     password: string
-    pickupLocation: string
+    pickupBus: string
   }) => Promise<ActionError & { needsConfirmation?: boolean }>
   login: (email: string, password: string) => Promise<ActionError>
   /**
@@ -72,8 +63,14 @@ export interface AppContextValue {
 
   /* ------------------------------- lookups ------------------------------ */
 
+  /** Active pickup places (`kind='place'`), for the per-week picker. */
   places: PickupPlace[]
+  /** Every pickup place, archived included, for the admin's place section. */
   allPlaces: PickupPlace[]
+  /** Active buses (`kind='bus'`), for the signup dropdown. */
+  buses: PickupPlace[]
+  /** Every bus, archived included, for the admin's bus section. */
+  allBuses: PickupPlace[]
   /** The signed-in rider's record for a week, or null. */
   weekSubFor: (userId: string, weekStart: string) => WeekSubscription | null
   weekStatusFor: (userId: string, weekStart: string) => SubStatus
@@ -98,16 +95,11 @@ export interface AppContextValue {
 
   /* -------------------------------- places ------------------------------ */
 
-  addPlace: (name: string) => Promise<ActionError>
+  addPlace: (name: string, kind: PlaceKind) => Promise<ActionError>
   renamePlace: (id: string, name: string) => Promise<ActionError>
   archivePlace: (id: string) => Promise<ActionError>
   restorePlace: (id: string) => Promise<ActionError>
   deletePlace: (id: string) => Promise<ActionError>
-  placeRequests: PlaceRequest[]
-  approveRequest: (id: string) => Promise<ActionError>
-  rejectRequest: (id: string) => Promise<ActionError>
-  deletePlaceRequest: (id: string) => Promise<ActionError>
-  requestPlace: (name: string) => Promise<ActionError>
 
   /* -------------------------------- profile ------------------------------ */
 

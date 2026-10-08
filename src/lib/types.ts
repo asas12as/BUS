@@ -6,7 +6,14 @@ export type Theme = 'light' | 'dark'
 /** Weekly subscription state: none -> pending -> subscribed (admin confirms). */
 export type SubStatus = 'none' | 'pending' | 'subscribed'
 
-export type PlaceRequestStatus = 'open' | 'approved' | 'rejected'
+/**
+ * What a `places` row is.
+ *
+ * A 'bus' is the line a rider is on, chosen once at signup. A 'place' is the
+ * stop they board from, chosen per week when subscribing. The two share a table
+ * and are told apart by this field.
+ */
+export type PlaceKind = 'place' | 'bus'
 
 export interface User {
   id: string
@@ -24,12 +31,17 @@ export interface User {
   /**
    * The rider's usual pickup place, which is the same "place" the subscription
    * sheet uses: either the id of a curated place or, when the rider wrote their
-   * own, the free-text name. Captured at sign-up so the weekly sheet can
-   * pre-select it instead of asking again. Both fields are optional so accounts
-   * created before this existed still load.
+   * own, the free-text name. Both fields are optional so accounts created before
+   * this existed still load.
    */
   pickupId?: string | null
   pickupLocation?: string | null
+  /**
+   * The bus the rider chose at signup. Separate from the pickup place, which is
+   * chosen per week. Optional so accounts created before the split still load.
+   */
+  pickupBusId?: string | null
+  pickupBusName?: string | null
 }
 
 /** Per-day schedule only. Subscription state lives on the week, not the day. */
@@ -62,18 +74,16 @@ export interface WeekSubscription {
   updatedAt: string
 }
 
+/**
+ * A row of the shared `places` table, as either a bus or a place.
+ *
+ * The same shape backs both lists; `kind` says which one a row belongs to.
+ */
 export interface PickupPlace {
   id: string
   name: string
+  kind: PlaceKind
   active: boolean
-  createdAt: string
-}
-
-export interface PlaceRequest {
-  id: string
-  userId: string
-  name: string
-  status: PlaceRequestStatus
   createdAt: string
 }
 

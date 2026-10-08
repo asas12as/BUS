@@ -24,48 +24,30 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 }
 
 export function SignUp() {
-  const { t, show, signUp, places } = useApp()
+  const { t, show, signUp, buses } = useApp()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [pickupLocation, setPickupLocation] = useState('')
+  const [pickupBus, setPickupBus] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<TranslationKey | null>(null)
   const [pending, setPending] = useState(false)
 
-  // The buses an admin has published. Archived ones are already filtered out by
-  // the context, so whatever is here is a place a rider may actually be picked up
-  // from.
-  //
-  // An empty list is not an error state to apologise for: it is a fresh install
-  // with nothing published yet. The field is disabled, and the first account to
-  // arrive becomes the admin who adds the buses -- so the form says that plainly
-  // rather than implying the rider has done something wrong.
-  const options = places.filter((place) => place.active)
+  const options = buses
   const noPlaces = options.length === 0
 
-  /**
-   * Awaited, and the outcome has two shapes.
-   *
-   * With email confirmation on, GoTrue creates the account but returns no
-   * session. That is a success from the rider's point of view -- the account
-   * exists -- so it shows "check your email" rather than an error, and there is
-   * nothing to navigate to.
-   */
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPending(true)
     setError(null)
     setNotice(null)
 
-    const result = await signUp({ name, phone, email, password, pickupLocation })
+    const result = await signUp({ name, phone, email, password, pickupBus })
     setPending(false)
 
     if (result.ok) {
-      // From the result, not from `isAdmin`: that is still the pre-sign-up
-      // value, since the context has not re-rendered by the time we navigate.
       navigate(result.role === 'admin' ? '/admin' : '/')
       return
     }
@@ -126,9 +108,6 @@ export function SignUp() {
           />
         </label>
 
-        {/* Chosen from the buses an admin maintains, not typed in.
-            Required once there are any, because the pickup decides who to expect
-            on the bus. */}
         <label className="field">
           <span className="field__label">
             <MapPinIcon className="field__icon" />
@@ -136,8 +115,8 @@ export function SignUp() {
           </span>
           <select
             className="field__input"
-            value={pickupLocation}
-            onChange={(e) => setPickupLocation(e.target.value)}
+            value={pickupBus}
+            onChange={(e) => setPickupBus(e.target.value)}
             disabled={noPlaces}
             required={!noPlaces}
           >
