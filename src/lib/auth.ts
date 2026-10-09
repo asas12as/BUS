@@ -153,7 +153,7 @@ export async function signUp(input: {
           //
           // Empty only when the install has no buses published yet: the first
           // account on an untouched install becomes the admin who adds them.
-          pickup: input.pickup.trim() || null,
+          pickup_bus: input.pickup.trim() || null,
           // Null rather than omitted: an empty string would be stored as if the
           // rider had typed an address, and contact would show them a blank row.
           email: contactEmail || null
