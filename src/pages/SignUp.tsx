@@ -122,7 +122,7 @@ export function SignUp() {
           >
             <option value="">{t('pickupBusChoose')}</option>
             {options.map((place) => (
-              <option key={place.id} value={place.name}>
+              <option key={place.id} value={place.id}>
                 {place.name}
               </option>
             ))}
