@@ -24,37 +24,30 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 }
 
 export function SignUp() {
-  const { t, show, signUp, places } = useApp()
+  const { t, show, signUp, buses } = useApp()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [pickupLocation, setPickupLocation] = useState('')
+  const [pickupBus, setPickupBus] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<TranslationKey | null>(null)
   const [pending, setPending] = useState(false)
 
-  /**
-   * Awaited, and the outcome has two shapes.
-   *
-   * With email confirmation on, GoTrue creates the account but returns no
-   * session. That is a success from the rider's point of view -- the account
-   * exists -- so it shows "check your email" rather than an error, and there is
-   * nothing to navigate to.
-   */
+  const options = buses
+  const noPlaces = options.length === 0
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPending(true)
     setError(null)
     setNotice(null)
 
-    const result = await signUp({ name, phone, email, password, pickupLocation })
+    const result = await signUp({ name, phone, email, password, pickupBus })
     setPending(false)
 
     if (result.ok) {
-      // From the result, not from `isAdmin`: that is still the pre-sign-up
-      // value, since the context has not re-rendered by the time we navigate.
       navigate(result.role === 'admin' ? '/admin' : '/')
       return
     }
@@ -77,7 +70,7 @@ export function SignUp() {
             onChange={(e) => setName(e.target.value)}
             placeholder={t('namePlaceholder')}
             autoComplete="name"
-            minLength={3}
+            required
           />
         </label>
 
@@ -94,46 +87,47 @@ export function SignUp() {
             inputMode="tel"
             autoComplete="tel"
             dir="ltr"
+            required
           />
         </label>
 
         <label className="field">
           <span className="field__label">
             <MailIcon className="field__icon" />
-            {t('email')}
+            {t('emailOptional')}
           </span>
           <input
             className="field__input"
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={t('emailPlaceholder')}
+            placeholder={t('emailOptionalPlaceholder')}
             inputMode="email"
             autoComplete="email"
             dir="ltr"
           />
         </label>
 
-        {/* The same choice the subscription sheet offers: pick a known place,
-            or write your own and let the admin add it. */}
         <label className="field">
           <span className="field__label">
             <MapPinIcon className="field__icon" />
-            {t('pickupLocation')}
+            {t('pickupBus')}
           </span>
-          <input
+          <select
             className="field__input"
-            list="nvu-bus-places"
-            value={pickupLocation}
-            onChange={(e) => setPickupLocation(e.target.value)}
-            placeholder={t('pickupLocationPlaceholder')}
-            autoComplete="off"
-          />
+            value={pickupBus}
+            onChange={(e) => setPickupBus(e.target.value)}
+            disabled={noPlaces}
+            required={!noPlaces}
+          >
+            <option value="">{t('pickupBusChoose')}</option>
+            {options.map((place) => (
+              <option key={place.id} value={place.id}>
+                {place.name}
+              </option>
+            ))}
+          </select>
         </label>
-        <datalist id="nvu-bus-places">
-          {places.map((place) => (
-            <option key={place.id} value={place.name} />
-          ))}
-        </datalist>
 
         <label className="field">
           <span className="field__label">
@@ -147,6 +141,7 @@ export function SignUp() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t('passwordPlaceholder')}
             autoComplete="new-password"
+            required
           />
         </label>
 

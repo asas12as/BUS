@@ -10,7 +10,7 @@
  * Keyed by user id, so signing in on a shared tablet does not show the previous
  * rider's subscriptions for a frame before the fetch lands.
  */
-import type { Lang, PickupPlace, PlaceRequest, User, WeekSubscription } from './types'
+import type { Lang, PickupPlace, User, WeekSubscription } from './types'
 
 /**
  * Separate from the old `projectbus.data.v1` blob on purpose.
@@ -21,12 +21,45 @@ import type { Lang, PickupPlace, PlaceRequest, User, WeekSubscription } from './
  */
 const KEY = 'nvu.bus.cache.v1'
 
+/**
+ * The language chosen before signing in.
+ *
+ * A rider standing on the bus with no account yet cannot change the language:
+ * `lang` is a column on the profile, so the write needs a signed-in user, and the
+ * switch on the login and signup screens did nothing at all. This holds that
+ * choice on the device, and it is promoted to the profile on the way in.
+ *
+ * Separate from the snapshot because it is not server data and must never be
+ * shown as if it were. The rider's own account language still wins once they are
+ * signed in; this only decides what the two auth screens say in the meantime.
+ */
+const LANG_KEY = 'nvu.bus.lang.v1'
+
+/** The language this device prefers, if it has said. */
+export function readDeviceLang(): Lang | null {
+  try {
+    const stored = localStorage.getItem(LANG_KEY)
+    return stored === 'ar' || stored === 'en' ? stored : null
+  } catch {
+    return null
+  }
+}
+
+/** Remembers the language this device prefers. */
+export function writeDeviceLang(lang: Lang): void {
+  try {
+    localStorage.setItem(LANG_KEY, lang)
+  } catch {
+    // Storage unavailable. The switch still works for this session; it just will
+    // not be remembered next time, which is a fair outcome for a preference.
+  }
+}
+
 export interface CacheSnapshot {
   userId: string
   user: User
   weeks: Array<{ userId: string; sub: WeekSubscription }>
   places: PickupPlace[]
-  placeRequests: PlaceRequest[]
   lang: Lang
   savedAt: string
 }

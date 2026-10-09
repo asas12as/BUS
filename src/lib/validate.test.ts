@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidEmail, isValidName, isValidPassword, isValidPhone } from './validate'
+import { isValidEmail, isValidName, isValidPassword, isValidPhone, countNameWords } from './validate'
 
 describe('isValidEmail', () => {
   it('accepts ordinary addresses', () => {
@@ -51,17 +51,78 @@ describe('isValidPhone', () => {
 })
 
 describe('isValidName', () => {
-  it('accepts three characters or more', () => {
-    expect(isValidName('Ali')).toBe(true)
+  it('accepts a full name of three words', () => {
+    expect(isValidName('Ahmed Adel Ibrahim')).toBe(true)
+    expect(isValidName('Sara Maged Fahmy')).toBe(true)
   })
 
-  it('rejects one or two characters', () => {
+  it('rejects the short forms that were previously accepted', () => {
+    // The old rule was three characters, so 'Ali' and 'Ahmed' both passed. That
+    // is the gap this closes.
+    expect(isValidName('Ali')).toBe(false)
+    expect(isValidName('Ahmed')).toBe(false)
+    expect(isValidName('Ahmed Adel')).toBe(false)
     expect(isValidName('Al')).toBe(false)
+    expect(isValidName('')).toBe(false)
   })
 
-  it('does not count padding as characters', () => {
-    expect(isValidName('  Al  ')).toBe(false)
-    expect(isValidName('  Ali  ')).toBe(true)
+  it('does not count padding as words', () => {
+    expect(isValidName('  Ahmed Adel  ')).toBe(false)
+    expect(isValidName('  Ahmed Adel Ibrahim  ')).toBe(true)
+  })
+
+  it('counts an Arabic name the same way', () => {
+    expect(isValidName('أحمد عادل إبراهيم')).toBe(true)
+    expect(isValidName('أحمد عادل')).toBe(false)
+  })
+
+  it('ignores punctuation stuck to the edges', () => {
+    expect(isValidName('Ahmed Adel, Ibrahim.')).toBe(true)
+    expect(isValidName(',,, Ahmed Adel Ibrahim !!!')).toBe(true)
+    expect(isValidName('- Ahmed - Adel -')).toBe(false)
+  })
+
+  it('counts four words as valid', () => {
+    expect(isValidName('Ahmed Adel Ibrahim Mohamed')).toBe(true)
+  })
+})
+
+describe('countNameWords', () => {
+  it('reports what it counted', () => {
+    expect(countNameWords('Ahmed')).toBe(1)
+    expect(countNameWords('Ahmed Adel')).toBe(2)
+    expect(countNameWords('Ahmed Adel Ibrahim')).toBe(3)
+    expect(countNameWords('Ahmed   Adel    Ibrahim')).toBe(3)
+    expect(countNameWords('   ')).toBe(0)
+  })
+
+  it('does not count a number typed into the name field as a name part', () => {
+    expect(countNameWords('123')).toBe(1)
+  })
+
+  // Mirrored by public.count_name_words in 0005. Each of these was a real
+  // disagreement between the two implementations while 0005 was being written,
+  // so they are here to keep the mirror honest rather than to document the rule.
+  it('matches the SQL mirror on punctuation between names', () => {
+    expect(countNameWords('Ahmed - Adel')).toBe(2)
+    expect(countNameWords('Ahmed . Adel')).toBe(2)
+    expect(countNameWords('Ahmed , , Adel')).toBe(2)
+    expect(countNameWords('...')).toBe(0)
+    expect(countNameWords('! Ahmed Adel Ibrahim ?')).toBe(3)
+  })
+
+  it('matches the SQL mirror on Arabic names', () => {
+    // Arabic is the language the app is actually read in, and a mirror that
+    // only holds for Latin names is not a mirror.
+    expect(countNameWords('أحمد محمد علي')).toBe(3)
+    expect(countNameWords('أحمد - محمد')).toBe(2)
+  })
+
+  it('treats a hyphen-joined name as one word', () => {
+    // The rule is about being recognisable on the day, and a hyphen-joined
+    // string is one token however long it is.
+    expect(countNameWords('Ahmed-Mohamed-Ibrahim')).toBe(1)
+    expect(countNameWords('Ahmed Mohamed Ibrahim')).toBe(3)
   })
 })
 

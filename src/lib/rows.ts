@@ -13,7 +13,7 @@
  * exist. The app's own types keep `active`, which is the inverse, so that every
  * read of that field says what it means.
  */
-import type { Lang, PlaceRequestStatus, Role, SubStatus } from './types'
+import type { Lang, PlaceKind, Role, SubStatus } from './types'
 
 export interface ProfileRow {
   id: string
@@ -24,6 +24,15 @@ export interface ProfileRow {
   avatar: string | null
   pickup_place_id: string | null
   pickup_name: string | null
+  pickup_bus_id: string | null
+  pickup_bus_name: string | null
+  /**
+   * The rider's own address, when they gave one at signup.
+   *
+   * Distinct from the account's GoTrue address, which is derived from the phone
+   * and is never shown. This is the one a human typed, and it is optional.
+   */
+  email?: string | null
   created_at: string
   updated_at: string
 }
@@ -52,17 +61,10 @@ export interface ScanResultRow {
 export interface PlaceRow {
   id: string
   name: string
+  kind: string
   archived: boolean
   created_at: string
-}
-
-export interface PlaceRequestRow {
-  id: string
-  user_id: string
-  name: string
-  status: string
-  created_at: string
-  resolved_at: string | null
+  bus_id?: string | null
 }
 
 export interface WeekSubscriptionRow {
@@ -97,7 +99,7 @@ function oneOf<T extends string>(value: string, allowed: readonly T[], fallback:
 export const ROLES = ['user', 'admin'] as const satisfies readonly Role[]
 export const LANGS = ['en', 'ar'] as const satisfies readonly Lang[]
 export const SUB_STATUSES = ['none', 'pending', 'subscribed'] as const satisfies readonly SubStatus[]
-export const REQUEST_STATUSES = ['open', 'approved', 'rejected'] as const satisfies readonly PlaceRequestStatus[]
+export const PLACE_KINDS = ['place', 'bus'] as const satisfies readonly PlaceKind[]
 
 /** What a scan can conclude, in the order the driver screen treats them. */
 export const SCAN_RESULTS = ['valid', 'pending', 'cancelled', 'not_found'] as const
@@ -115,8 +117,8 @@ export function asSubStatus(value: string): SubStatus {
   return oneOf(value, SUB_STATUSES, 'none')
 }
 
-export function asRequestStatus(value: string): PlaceRequestStatus {
-  return oneOf(value, REQUEST_STATUSES, 'open')
+export function asPlaceKind(value: string): PlaceKind {
+  return oneOf(value, PLACE_KINDS, 'place')
 }
 
 /**

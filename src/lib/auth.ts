@@ -12,6 +12,7 @@
  */
 import { supabase, describeError, SupabaseNotConfigured } from './supabase'
 import { RepoError, fetchOwnProfile } from './repo'
+import { normalizePhone, derivedEmailForPhone } from './phone'
 import type { MeProfile } from './mappers'
 
 /**
@@ -98,6 +99,21 @@ function toAuthSession(session: AuthSessionUser | null): AuthSession | null {
 /**
  * Creates an account and, when the project allows it, signs the rider straight in.
  *
+ * The account's GoTrue address is derived from the phone number, not typed.
+ * This project's GoTrue refuses a signup carrying both an email and a phone, and
+ * its phone provider is disabled, so email is the only key it can enforce
+ * uniqueness on. Deriving the address from the number makes the number the
+ * identity: the same number always produces the same address, so Supabase's own
+ * unique index is what stops a second account, and signing in is a matter of
+ * recomputing the address rather than looking it up.
+ *
+ * The address lives under `.invalid`, which RFC 2606 reserves and which can
+ * never resolve, so no mail is sent to it and no rider can hold one.
+ *
+ * The rider's own email, when they gave one, is not used as the login key. It
+ * rides along in signup metadata and lands on the profile for contact, and
+ * nothing else.
+ *
  * The name and language go into signup metadata because the trigger that creates
  * the profile row reads them from there. That is the only place they can come
  * from: the insert runs as postgres, with no access to the request body.
@@ -108,15 +124,40 @@ export async function signUp(input: {
   name: string
   lang: 'en' | 'ar'
   phone: string
+  /** The bus chosen from the admin's list. Empty only on the first-ever signup. */
+  pickup: string
 }): Promise<SignUpOutcome> {
-  const email = input.email.trim().toLowerCase()
+  const contactEmail = input.email.trim().toLowerCase()
+  let derived: string
+  try {
+    derived = derivedEmailForPhone(input.phone)
+  } catch {
+    return { kind: 'error', message: 'That phone number could not be read.' }
+  }
+
   let result
   try {
     result = await supabase().auth.signUp({
-      email,
+      email: derived,
       password: input.password,
       options: {
-        data: { name: input.name.trim(), lang: input.lang, phone: input.phone.trim() },
+        data: {
+          name: input.name.trim(),
+          lang: input.lang,
+          phone: normalizePhone(input.phone) ?? '',
+          // The pickup travels with the signup rather than being written after
+          // it. That makes the signup one transaction, so there is no state in
+          // which an account exists with the form half-satisfied, and it puts
+          // "pickup is required" in the database trigger where it cannot be
+          // skipped by calling this endpoint directly.
+          //
+          // Empty only when the install has no buses published yet: the first
+          // account on an untouched install becomes the admin who adds them.
+          pickup_bus: input.pickup.trim() || null,
+          // Null rather than omitted: an empty string would be stored as if the
+          // rider had typed an address, and contact would show them a blank row.
+          email: contactEmail || null
+        },
         // Keeps the confirmation email out of the URL when the project has it on.
         emailRedirectTo: typeof window === 'undefined' ? undefined : window.location.origin
       }
@@ -128,6 +169,8 @@ export async function signUp(input: {
   if (result.error) {
     // GoTrue reports a duplicate signup as a success with an empty user list
     // when "confirm email" is on, so this check has to come before the error.
+    // With the address derived from the number, this is the duplicate-number
+    // answer: "already registered" means this number already has an account.
     if (/already registered|already been registered|user already/i.test(result.error.message)) {
       return { kind: 'already-registered' }
     }
@@ -139,25 +182,34 @@ export async function signUp(input: {
   // user is checked first: with confirmation on, GoTrue returns a user with no
   // session, which is the expected shape rather than a failure.
   if (!user) {
-    return { kind: 'needs-confirmation', email }
+    return { kind: 'needs-confirmation', email: contactEmail || derived }
   }
 
-  const profile = await loadUser(user)
-  return profile ? { kind: 'signed-in', profile } : { kind: 'needs-confirmation', email }
+  const profile = await loadUser(user, contactEmail)
+  return profile ? { kind: 'signed-in', profile } : { kind: 'needs-confirmation', email: contactEmail || derived }
 }
 
 /**
- * Signs in.
+ * Signs in, with the phone number rather than an email address.
  *
- * The returned profile is read from the database rather than assembled from the
- * auth response, because role lives in profiles and only the database knows it.
- * A rider's own role is never read from a JWT the browser can see.
+ * The address is recomputed from the number the rider typed, so no lookup is
+ * involved and the database is never asked which accounts exist. A number that
+ * spells an existing account differently still finds it, which is the point.
  */
-export async function signIn(email: string, password: string): Promise<SignInOutcome> {
+export async function signIn(phone: string, password: string): Promise<SignInOutcome> {
+  let derived: string
+  try {
+    derived = derivedEmailForPhone(phone)
+  } catch {
+    // The same shape GoTrue would return for an unknown account, so a malformed
+    // number is not distinguishable from a wrong password.
+    return { kind: 'error', message: 'Wrong phone number or password' }
+  }
+
   let result
   try {
     result = await supabase().auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: derived,
       password
     })
   } catch (error) {
@@ -167,7 +219,7 @@ export async function signIn(email: string, password: string): Promise<SignInOut
   if (result.error) {
     // Supabase returns the same message for an unknown address and a wrong
     // password, which is deliberate: telling them apart would confirm which
-    // addresses have accounts.
+    // numbers have accounts.
     return { kind: 'error', message: describeError(result.error) }
   }
 
@@ -191,17 +243,25 @@ export async function signIn(email: string, password: string): Promise<SignInOut
  * after sign-up it may not be visible yet. One retry covers that without turning
  * a transient race into a failed login.
  *
- * The email and phone are taken from the auth user rather than joined:
- * `auth.users` is not queryable from a client, and both values were set by this
- * app at signup, so the session is the authoritative copy.
+ * The phone and the contact email are passed in rather than joined. `auth.users`
+ * is not queryable from a client, and the account's GoTrue address is derived
+ * from the phone rather than being it, so the session's own email field is a
+ * synthetic value and useless for display. The profile row holds the rider's
+ * real address, and fetchOwnProfile prefers it.
  */
-async function loadUser(authUser: { id: string; email?: string; user_metadata?: unknown }): Promise<MeProfile | null> {
-  const email = authUser.email ?? ''
-  const metadata = authUser.user_metadata as { phone?: unknown } | undefined
+async function loadUser(
+  authUser: { id: string; email?: string; user_metadata?: unknown },
+  fallbackEmail = ''
+): Promise<MeProfile | null> {
+  const metadata = authUser.user_metadata as { phone?: unknown; email?: unknown } | undefined
   const phone = typeof metadata?.phone === 'string' ? metadata.phone : ''
+  const contact =
+    typeof metadata?.email === 'string' && metadata.email.trim()
+      ? metadata.email.trim()
+      : fallbackEmail
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const profile = await fetchOwnProfile(authUser.id, email, phone)
+    const profile = await fetchOwnProfile(authUser.id, contact, phone)
     if (profile) return profile
     await new Promise((resolve) => setTimeout(resolve, 400))
   }

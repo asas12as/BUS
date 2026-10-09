@@ -10,18 +10,17 @@
  * is `{}`; the app treats "no days stored" as the full selectable week, which is
  * the historical meaning of that record.
  */
-import type { DayEntry, Lang, PickupPlace, PlaceRequest, User, WeekSubscription } from './types'
+import type { DayEntry, Lang, PickupPlace, User, WeekSubscription } from './types'
 import { SELECTABLE_DAYS, normalizeDays, isValidDayChoice } from './date'
 import {
   asLang,
-  asRequestStatus,
+  asPlaceKind,
   asRole,
   asSubStatus,
   asScanResult,
   daysFromRecord,
   daysToRecord,
   type DayEntryRow,
-  type PlaceRequestRow,
   type PlaceRow,
   type ProfileRow,
   type ScanResult,
@@ -93,7 +92,9 @@ export function toUser(row: ProfileInput, metadataPhone?: string): UserWithPhone
     createdAt: row.created_at,
     avatar: row.avatar,
     pickupId: row.pickup_place_id ?? null,
-    pickupLocation: row.pickup_name ?? null
+    pickupLocation: row.pickup_name ?? null,
+    pickupBusId: row.pickup_bus_id ?? null,
+    pickupBusName: row.pickup_bus_name ?? null
   }
 }
 
@@ -109,18 +110,10 @@ export function toPlace(row: PlaceRow): PickupPlace {
   return {
     id: row.id,
     name: row.name,
+    kind: asPlaceKind(row.kind),
     active: !row.archived,
-    createdAt: row.created_at
-  }
-}
-
-export function toPlaceRequest(row: PlaceRequestRow): PlaceRequest {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    name: row.name,
-    status: asRequestStatus(row.status),
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    busId: row.bus_id ?? null
   }
 }
 

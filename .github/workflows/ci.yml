@@ -1,0 +1,47 @@
+name: CI
+
+# Verifies every pull request that targets main, so the protected branch cannot
+# be merged on trust alone. `main` is the branch that publishes, which makes it
+# the one place worth a gate.
+on:
+  pull_request:
+    branches: [main]
+
+# Least privilege. This only ever reads the repository: it has no deployment
+# step and therefore no need for `pages: write` or an OIDC token.
+permissions:
+  contents: read
+
+# A new push to the same PR supersedes the previous one. Without this, every
+# force-push during review leaves a queued run waiting to report on a commit
+# nobody is shipping.
+concurrency:
+  group: ci-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22 matches modules/nodejs-22 in .replit and deploy.yml, so a green
+      # run here means the same code that the Pages job is about to build.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # The same script run locally and by the deploy job. One entry point means
+      # there is no way for the three to drift apart.
+      #
+      # No Supabase variables are passed, and none are needed. Vite replaces an
+      # unset VITE_* with undefined at build time rather than failing, and
+      # src/lib/supabase.ts resolves its credentials lazily on first use, so the
+      # build neither requires nor embeds them. CI therefore never needs access
+      # to anything that should not be public.
+      - name: Verify
+        run: npm run verify

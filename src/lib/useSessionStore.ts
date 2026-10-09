@@ -14,9 +14,9 @@
  *   from being bypassed.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DayEntry, Lang, PickupPlace, PlaceRequest, SubStatus, User, WeekSubscription } from './types'
+import type { DayEntry, Lang, PickupPlace, SubStatus, User, WeekSubscription } from './types'
 import { isValidDayChoice } from './date'
-import { cacheAvailable, readCache, writeCache, clearCache } from './cache'
+import { cacheAvailable, readCache, writeCache, clearCache, readDeviceLang, writeDeviceLang } from './cache'
 import * as repo from './repo'
 import { RepoError } from './repo'
 import * as auth from './auth'
@@ -72,7 +72,6 @@ interface ServerState {
   user: User | null
   weeks: Array<{ userId: string; sub: WeekSubscription }>
   places: PickupPlace[]
-  placeRequests: PlaceRequest[]
   lang: Lang
 }
 
@@ -80,8 +79,19 @@ const EMPTY: ServerState = {
   user: null,
   weeks: [],
   places: [],
-  placeRequests: [],
   lang: 'en'
+}
+
+/**
+ * The state a signed-out visitor starts from.
+ *
+ * Carries whatever language this device last chose, so the login and signup
+ * screens open in it rather than always in English. Read once at module load
+ * rather than in an effect, because the first paint is the one that decides
+ * whether somebody can read the form at all.
+ */
+function signedOutState(): ServerState {
+  return { ...EMPTY, lang: readDeviceLang() ?? 'en' }
 }
 
 export interface SessionStore {
@@ -100,9 +110,9 @@ export interface SessionStore {
     phone: string
     email: string
     password: string
-    pickupLocation: string
+    pickupBus: string
   }) => Promise<RepoResult>
-  signIn: (email: string, password: string) => Promise<RepoResult>
+  signIn: (phone: string, password: string) => Promise<RepoResult>
   signOut: () => Promise<void>
 
   toggleLang: () => Promise<void>
@@ -111,16 +121,13 @@ export interface SessionStore {
   cancelSubscription: (userId: string, weekStart: string) => Promise<RepoResult>
   confirmWeek: (userId: string, weekStart: string) => Promise<RepoResult>
 
-  createPlace: (name: string) => Promise<RepoResult>
+  createPlace: (name: string, kind: 'place' | 'bus', busId?: string | null) => Promise<RepoResult>
   renamePlace: (id: string, name: string) => Promise<RepoResult>
   archivePlace: (id: string) => Promise<RepoResult>
   restorePlace: (id: string) => Promise<RepoResult>
   deletePlace: (id: string) => Promise<RepoResult>
 
-  requestPlace: (name: string) => Promise<RepoResult>
-  approveRequest: (id: string) => Promise<RepoResult>
-  rejectRequest: (id: string) => Promise<RepoResult>
-  deleteRequest: (id: string) => Promise<RepoResult>
+  setPlaceBus: (id: string, busId: string | null) => Promise<RepoResult>
 
   updateProfile: (
     patch: Partial<Pick<User, 'name' | 'avatar' | 'phone' | 'pickupLocation'>>
@@ -199,6 +206,28 @@ export function useSessionStore(): SessionStore {
   /** Auth subscription teardown, held because it is created after an await. */
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
+  /**
+   * Moves a language chosen before signing in onto the profile.
+   *
+   * The device preference outranks the stored one on purpose: somebody who has
+   * just read a form in Arabic and then typed a password expects to still be
+   * reading Arabic, not to be switched back on the strength of a column written
+   * months ago on another device. Best effort -- if the write fails the profile
+   * keeps its own language and the interface still shows what was chosen here.
+   */
+  const promoteDeviceLang = useCallback(async (userId: string, profileLang: Lang) => {
+    const chosen = readDeviceLang()
+    if (!chosen || chosen === profileLang) return
+    try {
+      await repo.saveLanguage(userId, chosen)
+      langRef.current = chosen
+      setData((prev) => ({ ...prev, lang: chosen }))
+    } catch {
+      // The rider is signed in either way. Leaving the interface on the language
+      // they just chose is better than reverting it for a failed preference write.
+    }
+  }, [])
+
   useEffect(() => {
     userRef.current = data.user
   }, [data.user])
@@ -215,7 +244,6 @@ export function useSessionStore(): SessionStore {
       user: state.user,
       weeks: state.weeks,
       places: state.places,
-      placeRequests: state.placeRequests,
       lang: state.lang
     })
   }, [])
@@ -223,22 +251,30 @@ export function useSessionStore(): SessionStore {
   const loadAll = useCallback(async () => {
     const userId = userRef.current?.id
     if (!userId) {
-      setData(EMPTY)
+      // The pickup list is needed before there is an account, because the rider
+      // chooses their bus while registering. Fetched on its own rather than as
+      // part of the signed-in load, and a failure here is swallowed so a dropped
+      // request leaves the session alone instead of tearing down the provider.
+      try {
+        const places = await repo.fetchPlaces()
+        setData((prev) => ({ ...prev, places }))
+      } catch {
+        // Left as it was. The form then says no bus is available yet, which is
+        // true from this device's point of view and does not pretend otherwise.
+      }
       return
     }
     setSync((s) => ({ ...s, loading: true, error: null }))
     try {
-      const [me, weeks, places, placeRequests] = await Promise.all([
+      const [me, weeks, places] = await Promise.all([
         repo.fetchOwnProfile(userId, userRef.current?.email, userRef.current?.phone),
         repo.fetchWeekSubscriptions(),
-        repo.fetchPlaces(),
-        repo.fetchPlaceRequests()
+        repo.fetchPlaces()
       ])
       const next: ServerState = {
         user: me?.user ?? userRef.current,
         weeks,
         places,
-        placeRequests,
         // Language comes from the profile row, which is per account. Falling
         // back to what is already on screen keeps a read failure from flipping
         // the interface back to English.
@@ -258,7 +294,6 @@ export function useSessionStore(): SessionStore {
           user: cached.user,
           weeks: cached.weeks,
           places: cached.places,
-          placeRequests: cached.placeRequests,
           lang: cached.lang
         })
       }
@@ -402,37 +437,38 @@ export function useSessionStore(): SessionStore {
     async (input) => {
       if (!configured) return { error: 'This build has no database configured', local: true }
       try {
+        // Asked before the signup rather than only relied on afterwards. GoTrue
+        // reports a duplicate on the derived address in its own words, which is
+        // both English-only and about an address the rider never typed -- so the
+        // number is checked here and refused in the language being read.
+        //
+        // Only a fast "yes" is believed. A false is not proof the number is free:
+        // the function is deliberately answerable by anyone, so a transport
+        // failure must fall through to the signup attempt rather than lock a
+        // rider out of a number they may well own. The unique index is what
+        // actually enforces it, and it fires either way.
+        if (await repo.isPhoneRegistered(input.phone)) return { error: 'phoneTaken' }
+
         const outcome = await auth.signUp({
           email: input.email,
           password: input.password,
           name: input.name,
           lang: data.lang,
-          phone: input.phone
+          phone: input.phone,
+          pickup: input.pickupBus
         })
         if (outcome.kind === 'error') return { error: outcome.message }
-        if (outcome.kind === 'already-registered') return { error: 'That email is already registered' }
+        if (outcome.kind === 'already-registered') return { error: 'phoneTaken' }
         if (outcome.kind === 'needs-confirmation') {
           return { needsConfirmation: true, error: outcome.email }
         }
         userRef.current = outcome.profile.user
         setData((prev) => ({ ...prev, user: outcome.profile.user, lang: outcome.profile.lang }))
 
-        // A pickup typed at sign-up is either a known place, or a request for a
-        // new one. Same rule as the subscription sheet.
-        const wanted = input.pickupLocation.trim()
-        if (wanted) {
-          const known = data.places.find(
-            (p) => p.active && p.name.trim().toLowerCase() === wanted.toLowerCase()
-          )
-          if (!known) {
-            try {
-              await repo.requestPlaceOnServer(outcome.profile.user.id, wanted)
-            } catch {
-              // Not fatal. The account exists; the request can be filed later
-              // from the places screen.
-            }
-          }
-        }
+        // The bus went out with the signup and the database stored it, so there is
+        // nothing to write here. An empty one means the install had no bus to
+        // choose yet, which is only true of the very first account.
+        await promoteDeviceLang(outcome.profile.user.id, outcome.profile.lang)
         await loadAll()
         return { ok: true, role: outcome.profile.user.role }
       } catch (error) {
@@ -440,17 +476,18 @@ export function useSessionStore(): SessionStore {
         return { error: message }
       }
     },
-    [configured, data.lang, data.places, loadAll]
+    [configured, data.lang, loadAll, promoteDeviceLang]
   )
 
   const signIn = useCallback<SessionStore['signIn']>(
-    async (email, password) => {
+    async (phone, password) => {
       if (!configured) return { error: 'This build has no database configured', local: true }
       try {
-        const outcome = await auth.signIn(email, password)
+        const outcome = await auth.signIn(phone, password)
         if (outcome.kind === 'error') return { error: outcome.message }
         userRef.current = outcome.profile.user
         setData((prev) => ({ ...prev, user: outcome.profile.user, lang: outcome.profile.lang }))
+        await promoteDeviceLang(outcome.profile.user.id, outcome.profile.lang)
         await loadAll()
         return { ok: true, role: outcome.profile.user.role }
       } catch (error) {
@@ -458,14 +495,14 @@ export function useSessionStore(): SessionStore {
         return { error: message }
       }
     },
-    [configured, loadAll]
+    [configured, loadAll, promoteDeviceLang]
   )
 
   const signOut = useCallback(async () => {
     await auth.signOut()
     clearCache()
     userRef.current = null
-    setData(EMPTY)
+    setData(signedOutState())
     setSync({ loading: false, error: null, online: sync.online, stale: false })
   }, [sync.online])
 
@@ -474,16 +511,33 @@ export function useSessionStore(): SessionStore {
   /**
    * Switches the interface language.
    *
-   * The language is a column on the profile, so this is a write and is refused
-   * offline like every other one. That means the switch does not take effect on
-   * screen until the server has accepted it, which is the honest behaviour: a
-   * language that only this device remembers would quietly disagree with the
-   * profile the rider sees on another one.
+   * Two cases, because there are two situations and one rule:
+   *
+   * Signed in, the language is a column on the profile and this is a write. It
+   * is refused offline like every other one, and refused rather than applied
+   * locally first, so the switch does not take effect until the server has
+   * accepted it. That is honest: a language only this device remembered would
+   * quietly disagree with the profile the rider sees on another one.
+   *
+   * Signed out, there is no profile to write to, and the switch used to do
+   * nothing at all -- which left the button on the login and signup screens
+   * dead. A rider who cannot read the form cannot register, and cannot reach the
+   * screen where the language would have been changeable. So before sign-in the
+   * choice is kept on the device, applied immediately, and promoted to the
+   * profile at sign-in and at sign-up.
    */
   const toggleLang = useCallback(async () => {
     const next: Lang = data.lang === 'en' ? 'ar' : 'en'
     const user = userRef.current
-    if (!user || !networkAvailable()) return
+
+    if (!user) {
+      langRef.current = next
+      writeDeviceLang(next)
+      setData((prev) => ({ ...prev, lang: next }))
+      return
+    }
+
+    if (!networkAvailable()) return
     try {
       await repo.saveLanguage(user.id, next)
       langRef.current = next
@@ -560,9 +614,9 @@ export function useSessionStore(): SessionStore {
   /* --------------------------------- places ------------------------------- */
 
   const createPlace = useCallback<SessionStore['createPlace']>(
-    async (name) => {
+    async (name, kind, busId) => {
       if (!name.trim()) return { error: 'placeNameRequired', local: true }
-      return mutate(() => repo.createPlace(name))
+      return mutate(() => repo.createPlace(name, kind, busId))
     },
     [mutate]
   )
@@ -590,28 +644,8 @@ export function useSessionStore(): SessionStore {
     [mutate]
   )
 
-  const requestPlace = useCallback<SessionStore['requestPlace']>(
-    async (name) => {
-      const user = userRef.current
-      if (!user) return { error: 'notSignedIn', local: true }
-      if (!name.trim()) return { error: 'placeNameRequired', local: true }
-      return mutate(() => repo.requestPlaceOnServer(user.id, name))
-    },
-    [mutate]
-  )
-
-  const approveRequest = useCallback<SessionStore['approveRequest']>(
-    async (id) => mutate(() => repo.approvePlaceRequestOnServer(id)),
-    [mutate]
-  )
-
-  const rejectRequest = useCallback<SessionStore['rejectRequest']>(
-    async (id) => mutate(() => repo.rejectPlaceRequestOnServer(id)),
-    [mutate]
-  )
-
-  const deleteRequest = useCallback<SessionStore['deleteRequest']>(
-    async (id) => mutate(() => repo.deletePlaceRequestOnServer(id)),
+  const setPlaceBus = useCallback<SessionStore['setPlaceBus']>(
+    async (id, busId) => mutate(() => repo.setPlaceBus(id, busId)),
     [mutate]
   )
 
@@ -775,10 +809,7 @@ export function useSessionStore(): SessionStore {
       archivePlace,
       restorePlace,
       deletePlace,
-      requestPlace,
-      approveRequest,
-      rejectRequest,
-      deleteRequest,
+      setPlaceBus,
       updateProfile,
       changePassword,
       setUserRole,
@@ -812,10 +843,7 @@ export function useSessionStore(): SessionStore {
       archivePlace,
       restorePlace,
       deletePlace,
-      requestPlace,
-      approveRequest,
-      rejectRequest,
-      deleteRequest,
+      setPlaceBus,
       updateProfile,
       changePassword,
       setUserRole,

@@ -14,14 +14,14 @@
  *    resolution, because the rule is that offline means read-only. A failed
  *    write is reported, not remembered.
  */
-import type { Lang, PickupPlace, PlaceRequest, SubStatus, User, WeekSubscription } from './types'
+import type { Lang, PickupPlace, SubStatus, User, WeekSubscription } from './types'
 import { normalizeDays } from './date'
+import { normalizePhone } from './phone'
 import { supabase, describeError, SupabaseNotConfigured } from './supabase'
 import {
   asLang,
   daysToRecord,
   type DayEntryRow,
-  type PlaceRequestRow,
   type PlaceRow,
   type ProfileRow,
   type ScanResultRow,
@@ -32,7 +32,6 @@ import {
   profilePatch,
   toDayEntry,
   toPlace,
-  toPlaceRequest,
   toScanResolution,
   toUser,
   toWeekSubscription,
@@ -108,7 +107,12 @@ export async function fetchOwnProfile(userId: string, email?: string, phone?: st
   if (error) fail(error)
   if (!data) return null
   const row = data as ProfileRow
-  return { user: toUser({ ...row, email: email ?? null }, phone), lang: asLang(row.lang) }
+  // The stored address wins over the session's. The session carries the account's
+  // GoTrue address, which is derived from the phone number and reads as
+  // `p201001234567@phone.invalid`; showing that to a rider would be worse than
+  // showing nothing. The session value is only a fallback for a profile row
+  // written before the column existed.
+  return { user: toUser({ ...row, email: row.email ?? email ?? null }, phone), lang: asLang(row.lang) }
 }
 
 /**
@@ -149,7 +153,15 @@ export async function updateOwnProfile(
 ): Promise<void> {
   const body = profilePatch(patch)
   if (body.name !== undefined) body.name = String(body.name).trim()
-  if (body.phone !== undefined) body.phone = String(body.phone).trim()
+  if (body.phone !== undefined) {
+    // Normalised, not just trimmed. The unique index is built on the normalised
+    // value, so a raw spelling would still be caught as a duplicate, but the
+    // column would then hold two different strings for one number and the rider
+    // would see their own number change shape depending on where they edited it.
+    const normalized = normalizePhone(String(body.phone))
+    if (!normalized) fail(new Error('That phone number could not be read.'))
+    body.phone = normalized
+  }
 
   if (patch.pickupLocation !== undefined) {
     const wanted = (patch.pickupLocation ?? '').trim()
@@ -157,6 +169,7 @@ export async function updateOwnProfile(
       .from('places')
       .select('id')
       .eq('name', wanted)
+      .eq('kind', 'place')
       .eq('archived', false)
       .maybeSingle()
     if (error) fail(error)
@@ -363,14 +376,22 @@ export async function deleteWeekOnServer(userId: string, weekStart: string): Pro
 
 /* ---------------------------------- places -------------------------------- */
 
+/**
+ * Every place and bus, archived ones included.
+ *
+ * One query for the whole list; the screens split it by `kind` and by whether it
+ * is active. Fetched before there is an account too, because the signup form
+ * needs the buses.
+ */
 export async function fetchPlaces(): Promise<PickupPlace[]> {
   const { data, error } = await supabase().from('places').select('*').order('name')
   if (error) fail(error)
   return ((data ?? []) as PlaceRow[]).map(toPlace)
 }
 
-export async function createPlace(name: string): Promise<void> {
-  const { error } = await supabase().from('places').insert({ name: name.trim() })
+/** Adds a place or a bus. The kind is fixed at creation and never changes. */
+export async function createPlace(name: string, kind: 'place' | 'bus', busId?: string | null): Promise<void> {
+  const { error } = await supabase().from('places').insert({ name: name.trim(), kind, bus_id: busId ?? null })
   if (error) fail(error)
 }
 
@@ -390,91 +411,13 @@ export async function restorePlaceOnServer(id: string): Promise<void> {
   if (error) fail(error)
 }
 
+export async function setPlaceBus(id: string, busId: string | null): Promise<void> {
+  const { error } = await supabase().from('places').update({ bus_id: busId }).eq('id', id)
+  if (error) fail(error)
+}
+
 export async function deletePlaceOnServer(id: string): Promise<void> {
   const { error } = await supabase().from('places').delete().eq('id', id)
-  if (error) fail(error)
-}
-
-/* ------------------------------ place requests ---------------------------- */
-
-export async function fetchPlaceRequests(): Promise<PlaceRequest[]> {
-  const { data, error } = await supabase()
-    .from('place_requests')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) fail(error)
-  return ((data ?? []) as PlaceRequestRow[]).map(toPlaceRequest)
-}
-
-/**
- * Files a request for a place that does not exist yet.
- *
- * `user_id` has to be sent explicitly. The insert policy compares it against
- * auth.uid(), and a missing field is NULL, which does not equal the caller, so
- * an insert that omitted it would be refused with a confusing RLS error rather
- * than the obvious "you must supply a user".
- */
-export async function requestPlaceOnServer(userId: string, name: string): Promise<void> {
-  const trimmed = name.trim()
-  if (!trimmed) return
-  const { error } = await supabase().from('place_requests').insert({ user_id: userId, name: trimmed })
-  if (error) fail(error)
-}
-
-/**
- * Approves a request: creates the place, then resolves the request.
- *
- * Two writes, and deliberately not wrapped in a database function. The second
- * depends on the first having produced an id, and a rider who cancels between
- * them should be left with an orphaned open request, which an admin can resolve
- * by hand, rather than with a request pointing at a place that was never
- * created. The guard trigger keeps the rider from approving their own.
- */
-export async function approvePlaceRequestOnServer(requestId: string): Promise<void> {
-  const client = supabase()
-  const { data: request, error: readError } = await client
-    .from('place_requests')
-    .select('*')
-    .eq('id', requestId)
-    .maybeSingle()
-  if (readError) fail(readError)
-  if (!request) throw new RepoError('That request no longer exists')
-
-  const { data: place, error: insertError } = await client
-    .from('places')
-    .insert({ name: (request as PlaceRequestRow).name })
-    .select('*')
-    .single()
-  if (insertError) fail(insertError)
-
-  // Point the requester's unlinked subscriptions at the new place, matching the
-  // old localStorage behaviour of adoptPlaceRequest.
-  const placeId = (place as PlaceRow).id
-  const { error: linkError } = await client
-    .from('week_subscriptions')
-    .update({ pickup_place_id: placeId })
-    .eq('user_id', (request as PlaceRequestRow).user_id)
-    .is('pickup_place_id', null)
-    .eq('pickup_name', (request as PlaceRequestRow).name)
-  if (linkError) fail(linkError)
-
-  const { error: resolveError } = await client
-    .from('place_requests')
-    .update({ status: 'approved', resolved_at: new Date().toISOString() })
-    .eq('id', requestId)
-  if (resolveError) fail(resolveError)
-}
-
-export async function rejectPlaceRequestOnServer(requestId: string): Promise<void> {
-  const { error } = await supabase()
-    .from('place_requests')
-    .update({ status: 'rejected', resolved_at: new Date().toISOString() })
-    .eq('id', requestId)
-  if (error) fail(error)
-}
-
-export async function deletePlaceRequestOnServer(id: string): Promise<void> {
-  const { error } = await supabase().from('place_requests').delete().eq('id', id)
   if (error) fail(error)
 }
 
@@ -553,4 +496,27 @@ export async function recordScan(weekStart: string, number: number): Promise<Sca
 export async function saveLanguage(userId: string, lang: Lang): Promise<void> {
   const { error } = await supabase().from('profiles').update({ lang }).eq('id', userId)
   if (error) fail(error)
+}
+
+/**
+ * Whether a phone number already belongs to an account.
+ *
+ * Lets the signup form say "this number is registered" before it tries, instead
+ * of after. It is a convenience, not the guarantee: this runs before the write,
+ * so two simultaneous signups can both be told no, and both succeed, and only
+ * one survives. What actually prevents the second is the unique index on the
+ * normalised phone, which the database applies at the moment of the insert.
+ *
+ * Returns false rather than throwing when it cannot be reached. The signup form
+ * then proceeds and lets the real attempt produce the real answer, which is
+ * better than refusing to let somebody register because a check was flaky.
+ */
+export async function isPhoneRegistered(phone: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase().rpc('phone_in_use', { p_phone: phone })
+    if (error) return false
+    return data === true
+  } catch {
+    return false
+  }
 }

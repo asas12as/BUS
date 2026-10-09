@@ -14,19 +14,19 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { DayEntry, PickupPlace, PlaceRequest, SubStatus, User, WeekSubscription } from '../lib/types'
+import type { DayEntry, PickupPlace, PlaceKind, SubStatus, User, WeekSubscription } from '../lib/types'
 import { useSessionStore } from '../lib/useSessionStore'
 import { AppContext, type AppContextValue } from './useApp'
 import { blockedByCurrentWeek, isValidDayChoice, isWindowOpen, minutesRemaining, minutesUntilOpen, targetableWeekKey, weekKey } from '../lib/date'
 import { isValidEmail, isValidName, isValidPassword, isValidPhone } from '../lib/validate'
 import { ar, en, renderMessage, type TranslationKey } from '../i18n/translations'
 
-function openRequests(requests: PlaceRequest[]): PlaceRequest[] {
-  return requests.filter((r) => r.status === 'open')
+function byKind(places: PickupPlace[], kind: PlaceKind): PickupPlace[] {
+  return places.filter((p) => p.kind === kind)
 }
 
-function activePlaces(places: PickupPlace[]): PickupPlace[] {
-  return places.filter((p) => p.active)
+function activePlaces(places: PickupPlace[], kind: PlaceKind): PickupPlace[] {
+  return places.filter((p) => p.kind === kind && p.active)
 }
 
 /**
@@ -218,12 +218,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Same checks as before the cutover. They live in the client because they
       // are about giving immediate feedback on what was typed; the server
       // re-checks the things that matter for integrity.
-      if (!input.name.trim() || !input.phone.trim() || !input.email.trim() || !input.password) {
+      //
+      // Email is optional: the number is the identity, and an account with no
+      // address is a complete account. It is still checked when typed, so a
+      // mistyped one is caught rather than silently stored as unusable contact.
+      if (!input.name.trim() || !input.phone.trim() || !input.password) {
         return { error: 'requiredFields', local: true }
       }
-      if (!input.pickupLocation.trim()) return { error: 'selectPlace', local: true }
+      // Required whenever there is a bus to pick. With an empty list there is
+      // nothing to pick and the field is disabled, so requiring it would block
+      // the only account that can add the first one -- see the bootstrap note in
+      // supabase/migrations/0005_signup_rules.sql. The server draws the line in
+      // the same place and refuses a signup with no pickup once buses exist.
+      const buses = store.data.places.filter((p) => p.kind === 'bus' && p.active)
+      if (buses.length > 0 && !input.pickupBus.trim()) {
+        return { error: 'selectPlace', local: true }
+      }
       if (!isValidName(input.name)) return { error: 'nameTooShort', local: true }
-      if (!isValidEmail(input.email)) return { error: 'invalidEmail', local: true }
+      if (input.email.trim() && !isValidEmail(input.email)) {
+        return { error: 'invalidEmail', local: true }
+      }
       if (!isValidPhone(input.phone)) return { error: 'invalidPhone', local: true }
       if (!isValidPassword(input.password)) return { error: 'passwordTooShort', local: true }
       return store.signUp(input)
@@ -232,10 +246,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const login = useCallback<AppContextValue['login']>(
-    async (email, password) => {
-      if (!email.trim() || !password) return { error: 'requiredFields', local: true }
-      if (!isValidEmail(email)) return { error: 'invalidEmail', local: true }
-      return store.signIn(email, password)
+    async (phone, password) => {
+      if (!phone.trim() || !password) return { error: 'requiredFields', local: true }
+      if (!isValidPhone(phone)) return { error: 'invalidPhone', local: true }
+      return store.signIn(phone, password)
     },
     [store]
   )
@@ -245,16 +259,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /**
    * Interface language.
    *
-   * A no-op when the write would be refused: the language lives on the profile
-   * row, so switching it offline has nowhere to go. Returning without switching
-   * is better than switching on screen and reverting, which would flicker the
-   * whole interface for a change that did not happen.
+   * Deliberately not gated on being online. When signed in, the language is a
+   * column on the profile row, so switching it offline has nowhere to go and the
+   * store declines -- returning without switching is better than switching on
+   * screen and reverting, which would flicker the whole interface for a change
+   * that did not happen.
+   *
+   * When signed out there is no profile to write to, and refusing the switch
+   * there is what left the button on the login and signup screens dead: a rider
+   * who could not read the form had no way to change the language and no way to
+   * register either. The store owns that distinction.
    */
   const online = store.sync.online
   const toggleLang = useCallback(() => {
-    if (!online) return
     void store.toggleLang()
-  }, [store, online])
+  }, [store])
 
   const updateProfile = useCallback<AppContextValue['updateProfile']>(
     async (patch) => {
@@ -391,8 +410,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signUp,
       login,
       logout,
-      places: activePlaces(store.data.places),
-      allPlaces: store.data.places,
+      places: activePlaces(store.data.places, 'place'),
+      allPlaces: byKind(store.data.places, 'place'),
+      buses: activePlaces(store.data.places, 'bus'),
+      allBuses: byKind(store.data.places, 'bus'),
       weekSubFor,
       weekStatusFor,
       overallStatusFor,
@@ -418,11 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       archivePlace: store.archivePlace,
       restorePlace: store.restorePlace,
       deletePlace: store.deletePlace,
-      placeRequests: openRequests(store.data.placeRequests),
-      approveRequest: store.approveRequest,
-      rejectRequest: store.rejectRequest,
-      deletePlaceRequest: store.deleteRequest,
-      requestPlace: store.requestPlace,
+      setPlaceBus: store.setPlaceBus,
       updateProfile,
       changePassword,
       setUserRole: store.setUserRole,

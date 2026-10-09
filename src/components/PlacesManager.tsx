@@ -44,30 +44,36 @@ export function PlacesManager() {
   const {
     t,
     allPlaces,
-    allUsers,
+    allBuses,
     addPlace,
     renamePlace,
     archivePlace,
     restorePlace,
     deletePlace,
-    placeRequests,
-    approveRequest,
-    rejectRequest,
-    deletePlaceRequest
+    setPlaceBus
   } = useApp()
-  const [name, setName] = useState('')
+  const [busName, setBusName] = useState('')
+  const [placeName, setPlaceName] = useState('')
+  const [placeBus, setPlaceBusSel] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
-
   const [error, setError] = useState('')
 
-  // Awaited rather than checked inline: the write is a round trip to the
-  // server, so a synchronous `result.ok` would always be undefined and the
-  // field would clear even when the save was refused.
-  const submitNew = async () => {
-    const result = await addPlace(name)
+  const submitBus = async () => {
+    const result = await addPlace(busName, 'bus')
     if (result.ok) {
-      setName('')
+      setBusName('')
+      setError('')
+    } else {
+      setError(result.error ?? '')
+    }
+  }
+
+  const submitPlace = async () => {
+    const result = await addPlace(placeName, 'place', placeBus || null)
+    if (result.ok) {
+      setPlaceName('')
+      setPlaceBusSel('')
       setError('')
     } else {
       setError(result.error ?? '')
@@ -90,54 +96,100 @@ export function PlacesManager() {
       <section className="card anim-fade">
         <h2 className="card__title">
           <MapPinIcon className="card__titleIcon" />
-          {t('placeRequests')}
+          {t('manageBuses')}
         </h2>
 
-        {placeRequests.length === 0 ? (
-          <p className="empty">{t('noRequests')}</p>
+        <div className="inlineadd">
+          <input
+            className="field__input"
+            value={busName}
+            onChange={(e) => setBusName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submitBus()
+            }}
+            placeholder={t('busName')}
+          />
+          <button type="button" className="btn btn--primary" onClick={() => void submitBus()}>
+            {t('addBus')}
+          </button>
+        </div>
+
+        {error && <p className="form__error">{error}</p>}
+
+        {allBuses.length === 0 ? (
+          <p className="empty">{t('noBuses')}</p>
         ) : (
-          <ul className="statuslist">
-            {placeRequests.map((request, index) => {
-              // Resolved from the rider list rather than showing a raw uuid. The
-              // list is empty offline or for a non-admin, in which case the
-              // request id is all that is honest to show.
-              const who = allUsers.find((u) => u.id === request.userId)?.name ?? request.userId
-              return (
-                <li
-                  key={request.id}
-                  className="statuslist__row"
-                  style={{ '--i': Math.min(index, 10) } as React.CSSProperties}
-                >
-                  <div className="statuslist__day">
-                    <strong>{request.name}</strong>
-                    <small>{t('requestedBy')} {who}</small>
-                  </div>
-                  <div className="rowactions">
+          <ul className="placelist placelist--admin">
+            {allBuses.map((place, index) => (
+              <li key={place.id} className="placelist__row anim-stagger" style={{ '--i': index } as React.CSSProperties}>
+                {editing === place.id ? (
+                  <>
+                    <input
+                      className="field__input"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void submitRename(place.id)
+                      }}
+                    />
                     <button
                       type="button"
                       className="btn btn--primary btn--sm"
-                      onClick={() => approveRequest(request.id)}
+                      onClick={() => void submitRename(place.id)}
                     >
                       <CheckIcon className="btn__icon" />
-                      {t('approve')}
                     </button>
                     <button
                       type="button"
-                      className="btn btn--danger btn--sm"
-                      onClick={() => rejectRequest(request.id)}
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setEditing(null)}
                     >
                       <CloseIcon className="btn__icon" />
-                      {t('reject')}
                     </button>
-                    <ConfirmDelete
-                      label={t('deleteRequest')}
-                      confirmLabel={t('confirmDelete')}
-                      onConfirm={() => deletePlaceRequest(request.id)}
-                    />
-                  </div>
-                </li>
-              )
-            })}
+                  </>
+                ) : (
+                  <>
+                    <span className={place.active ? '' : 'is-archived'}>{place.name}</span>
+                    <span className="rowactions">
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => {
+                          setEditing(place.id)
+                          setDraft(place.name)
+                        }}
+                      >
+                        {t('rename')}
+                      </button>
+                      {place.active ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn--danger btn--sm"
+                            onClick={() => archivePlace(place.id)}
+                          >
+                            {t('remove')}
+                          </button>
+                          <ConfirmDelete
+                            label={t('deletePlace')}
+                            confirmLabel={t('confirmDelete')}
+                            onConfirm={() => deletePlace(place.id)}
+                          />
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => restorePlace(place.id)}
+                        >
+                          {t('restore')}
+                        </button>
+                      )}
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
           </ul>
         )}
       </section>
@@ -148,22 +200,26 @@ export function PlacesManager() {
           {t('managePlaces')}
         </h2>
 
-        <div className="inlineadd">
+        <div className="inlineadd" style={{ flexWrap: 'wrap' }}>
           <input
             className="field__input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={placeName}
+            onChange={(e) => setPlaceName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void submitNew()
+              if (e.key === 'Enter') void submitPlace()
             }}
             placeholder={t('placeName')}
           />
-          <button type="button" className="btn btn--primary" onClick={() => void submitNew()}>
+          <select className="field__input" value={placeBus} onChange={(e) => setPlaceBusSel(e.target.value)} style={{ maxWidth: 160 }}>
+            <option value="">اختر الباص</option>
+            {allBuses.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          <button type="button" className="btn btn--primary" onClick={() => void submitPlace()}>
             {t('addPlace')}
           </button>
         </div>
-
-        {error && <p className="form__error">{error}</p>}
 
         {allPlaces.length === 0 ? (
           <p className="empty">{t('noPlaces')}</p>
@@ -200,6 +256,17 @@ export function PlacesManager() {
                   <>
                     <span className={place.active ? '' : 'is-archived'}>{place.name}</span>
                     <span className="rowactions">
+                      <select
+                        className="field__input"
+                        value={place.busId ?? ''}
+                        onChange={(e) => void setPlaceBus(place.id, e.target.value || null)}
+                        style={{ maxWidth: 120, marginRight: 4 }}
+                      >
+                        <option value="">Unassigned</option>
+                        {allBuses.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
                       <button
                         type="button"
                         className="btn btn--ghost btn--sm"
